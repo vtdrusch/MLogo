@@ -3,13 +3,43 @@ package com.bme.mlogo;
 import com.bme.logo.*;
 import java.io.*;
 import java.util.*;
+import java.awt.*;
+import java.awt.image.*;
+import java.awt.event.*;
+import java.text.*;
+import javax.swing.*;
 import static com.bme.logo.Primitives.*;
 
-public class MLogo {
-	static final String version = "MLogo 0.1";
+public class MLogo implements ActionListener {
+	static final String version = "MLogo 0.2";
+	private final static String newline = "\n";
+	private JTextField listener;
+	private JTextArea terminal;
+	private static JFrame frame;
+	
+	public MLogo(boolean interactive, boolean turtles, boolean trace, java.util.List<String> args){
+		Environment e = kernel();
+		primitiveIO(e, trace);
+
+		// the repl always loads turtle graphics primitives,
+		// but they're strictly opt-in for batch mode.
+		if (turtles) {
+			TurtleGraphics t = new TurtleGraphics(e);
+			for(String fileName : args) { runFile(e, fileName, t); }
+			if (interactive) { repl(e, t); }
+			else { System.exit(0); }
+		}
+		else {
+			for(String fileName : args) { runFile(e, fileName, null); }
+			if (interactive) {
+				TurtleGraphics t = new TurtleGraphics(e);
+				repl(e, t);
+			}
+		}
+	}
 
 	public static void main(String[] a) {
-		List<String> args = new ArrayList<String>(Arrays.asList(a));
+		java.util.List<String> args = new ArrayList<String>(Arrays.asList(a));
 
 		boolean printHelp   = args.size() == 0;
 		boolean interactive = false;
@@ -33,31 +63,14 @@ public class MLogo {
 			System.out.println(" T : enable execution trace");
 			System.out.println();
 		}
-
-		Environment e = kernel();
-		primitiveIO(e, trace);
-
-		// the repl always loads turtle graphics primitives,
-		// but they're strictly opt-in for batch mode.
-		if (turtles) {
-			TurtleGraphics t = new TurtleGraphics(e);
-			for(String fileName : args) { runFile(e, fileName, t); }
-			if (interactive) { repl(e, t); }
-			else { System.exit(0); }
-		}
-		else {
-			for(String fileName : args) { runFile(e, fileName, null); }
-			if (interactive) {
-				TurtleGraphics t = new TurtleGraphics(e);
-				repl(e, t);
-			}
-		}
+		
+		new MLogo(interactive, turtles, trace, args);
 	}
 
-	private static void repl(Environment env, TurtleGraphics t) {
-		System.out.println(version);
-		System.out.println("type 'exit' to quit.");
-		System.out.println();
+	private void repl(Environment env, TurtleGraphics t) {
+		this.initGUI(t);
+		terminal.append(">" + version + "\n");
+		terminal.append(">type 'exit' to quit.\n");
 		Scanner in = new Scanner(System.in);
 
 		while(true) {
@@ -83,7 +96,110 @@ public class MLogo {
 		}
 		System.exit(0);
 	}
+	
+	private void initGUI(TurtleGraphics t){
+		JFrame frame = new JFrame(version);
+		frame.setDefaultCloseOperation(JFrame.EXIT_ON_CLOSE);
+		frame.setPreferredSize(new Dimension(1024, 768));
+		frame.setResizable(false);
+		
+		JPanel pane = new JPanel();
+		pane.setLayout(new GridBagLayout());
+		GridBagConstraints c = new GridBagConstraints();
+		
+		JTabbedPane tabbedPane1 = new JTabbedPane();
+		
+		this.terminal = new JTextArea();
+		this.terminal.setEditable(false);
+		
+		JComponent tab1 = new JScrollPane(terminal);
+		tabbedPane1.addTab("Terminal", null, tab1, "Terminal output");
+				
+		JComponent tab2 = makeTextPanel("Panel 2");
+		tabbedPane1.addTab("Graphics", null, tab2, "Turtle graphics");
+	
+		JTabbedPane tabbedPane2 = new JTabbedPane();
+		
+		JComponent tab3 = makeTextPanel("Panel 1");
+		tabbedPane2.addTab("Teacher", null, tab3, "Teaching module and help menu");
+				
+		JComponent tab4 = makeTextPanel("Panel 2");
+		tabbedPane2.addTab("Modules", null, tab4, "Learning modules");
+		
+		JComponent tab5 = makeTextPanel("Panel 3");
+		tabbedPane2.addTab("My Files", null, tab5, "User created Logo files");
+		
+		JComponent tab6 = makeTextPanel("Panel 4");
+		tabbedPane2.addTab("Library", null, tab6, "Function library");
+		
+		JComponent turtlePane = t.getTurtle();
+		
+		this.listener = new JTextField("", 30);
+		this.listener.addActionListener(this);
+		
+		c.fill = GridBagConstraints.HORIZONTAL;
+		c.anchor = GridBagConstraints.NORTHWEST;
+		c.ipadx = 900;
+		c.ipady = 640;
+		c.gridx = 0;
+		c.gridy = 0;
+		c.gridheight = 2;
+		c.weightx = 1.0;
+		c.weighty = 1.0;
+		pane.add(tabbedPane1, c);
+		
+		c.ipadx = 300;
+		c.ipady = 300;
+		c.gridx = 1;
+		c.gridy = 0;
+		c.gridheight = 1;
+		c.weightx = 0.0;
+		c.weighty = 0.0;
+		pane.add(turtlePane, c);
+		
+		c.ipadx = 300;
+		c.ipady = 330;
+		c.gridx = 1;
+		c.gridy = 1;
+		c.gridheight = 2;
+		c.weightx = 0.0;
+		c.weighty = 0.0;
+		pane.add(tabbedPane2, c);
+		
+		c.ipadx = 0;
+		c.ipady = 15;
+		c.gridx = 0;
+		c.gridy = 2;
+		c.gridheight = 1;
+		c.weightx = 0.0;
+		c.weighty = 0.0;
+		pane.add(listener, c);
+		
+		frame.add(pane);
+		frame.pack();
+		frame.setVisible(true);
+	}
 
+	protected static JComponent makeTextPanel(String text) {
+        JPanel panel = new JPanel(false);
+        JLabel filler = new JLabel(text);
+        filler.setHorizontalAlignment(JLabel.CENTER);
+        panel.setLayout(new GridLayout(1, 1));
+        panel.add(filler);
+        return panel;
+    }
+	
+	public void actionPerformed(ActionEvent evt) {
+		String text = listener.getText();
+		terminal.append(">" + text + newline);
+		listener.setText("");
+		if("exit".equals(text)){ System.exit(0); }
+
+		//Make sure the new text is visible, even if there
+		//was a selection in the text area.
+		terminal.setCaretPosition(terminal.getDocument().getLength());
+	}
+	
 	private static void runString(Environment env, String sourceText, TurtleGraphics t) {
 		try {
 			LList code = Parser.parse(sourceText);
@@ -171,7 +287,7 @@ public class MLogo {
 		final Scanner in = new Scanner(System.in);
 
 		if (trace) {
-			e.addTracer(new Tracer() {
+			e.setTracer(new Tracer() {
 				public void begin()  { System.out.println("tracer: begin."); }
 				public void end()    { System.out.println("tracer: end.");   }
 				//public void tick() { System.out.println("tracer: tick.");  }
@@ -195,9 +311,6 @@ public class MLogo {
 				public void stop(String name, boolean implicit) {
 					System.out.format("trace: STOP %s%s%n", name, implicit ? " (implicit)" : "");
 				}
-				public void define(String name) {
-					System.out.format("trace: DEFINE %s%n", name);
-				}
 			});
 		}
 
@@ -209,7 +322,7 @@ public class MLogo {
 
 		e.bind(new LWord(LWord.Type.Prim, "words") {
 			public void eval(Environment e) {
-				List<LWord> words = new ArrayList<LWord>(e.words());
+				java.util.List<LWord> words = new ArrayList<LWord>(e.words());
 				Collections.sort(words);
 				for(LWord word : words) { System.out.print(word + " "); }
 				System.out.println();
