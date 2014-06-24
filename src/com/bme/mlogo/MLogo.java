@@ -16,6 +16,7 @@ public class MLogo implements ActionListener {
 	private JTextField listener;
 	private JTextArea terminal;
 	private static JFrame frame;
+	private String input = "";
 	
 	public MLogo(boolean interactive, boolean turtles, boolean trace, java.util.List<String> args){
 		Environment e = kernel();
@@ -69,28 +70,33 @@ public class MLogo implements ActionListener {
 
 	private void repl(Environment env, TurtleGraphics t) {
 		this.initGUI(t);
-		terminal.append(">" + version + "\n");
-		terminal.append(">type 'exit' to quit.\n");
-		Scanner in = new Scanner(System.in);
+		terminal.append(">" + version + newline);
+		terminal.append(">type 'exit' to quit." + newline);
+		//Scanner in = new Scanner(input);
 
 		while(true) {
-			System.out.print(">");
 			try {
-				String line = in.nextLine();
-				if ("exit".equals(line)) { break; }
-				while(Parser.complete(line).size() > 0) {
-					System.out.print(">>");
-					line += "\n" + in.nextLine();
+				while("".equals(input)){ 
+					try{ Thread.sleep(10); }
+					catch(InterruptedException e){} 
 				}
-				runString(env, line, t);
+				//String line = in.nextLine();
+				if ("exit".equals(input)) { break; }
+				//while(Parser.complete(input).size() > 0) {
+					//terminal.append(">");
+					//input += newline;
+				//}
+				runString(env, input, t);
+				this.input = "";
 			}
 			catch(SyntaxError e) {
-				System.out.format("syntax error: %s%n", e.getMessage());
-				System.out.format("\t%s%n\t", e.line);
+				terminal.append(String.format("syntax error: %s%n", e.getMessage()));
+				terminal.append(String.format("\t%s%n\t", e.line));
 				for(int z = 0; z < e.lineIndex; z++) {
-					System.out.print(e.line.charAt(z) == '\t' ? '\t' : ' ');
+					terminal.append(((Character)(e.line.charAt(z) == '\t' ? '\t' : ' ')).toString());
 				}
-				System.out.println("^");
+				terminal.append("^" + newline);
+				this.input = "";
 				env.reset();
 			}
 		}
@@ -190,17 +196,17 @@ public class MLogo implements ActionListener {
     }
 	
 	public void actionPerformed(ActionEvent evt) {
-		String text = listener.getText();
-		terminal.append(">" + text + newline);
+		this.input = listener.getText();
+		terminal.append(">" + this.input + newline);
 		listener.setText("");
-		if("exit".equals(text)){ System.exit(0); }
+		//if("exit".equals(text)){ System.exit(0); }
 
 		//Make sure the new text is visible, even if there
 		//was a selection in the text area.
 		terminal.setCaretPosition(terminal.getDocument().getLength());
 	}
 	
-	private static void runString(Environment env, String sourceText, TurtleGraphics t) {
+	private void runString(Environment env, String sourceText, TurtleGraphics t) {
 		try {
 			LList code = Parser.parse(sourceText);
 			Interpreter.init(code, env);
@@ -216,11 +222,12 @@ public class MLogo implements ActionListener {
 			}
 		}
 		catch(RuntimeError e) {
-			System.out.format("runtime error: %s%n", e.getMessage());
+			terminal.append(String.format("runtime error: %s%n", e.getMessage()));
 			//e.printStackTrace();
 			for(LAtom atom : e.trace) {
-				System.out.format("\tin %s%n", atom);
+				terminal.append(String.format("\tin %s%n", atom));
 			}
+			this.input = "";
 			env.reset();
 		}
 	}
@@ -282,7 +289,7 @@ public class MLogo implements ActionListener {
 		}
 	}
 
-	private static void primitiveIO(Environment e, boolean trace) {
+	private void primitiveIO(Environment e, boolean trace) {
 		final LWord a = new LWord(LWord.Type.Name, "argument1");
 		final Scanner in = new Scanner(System.in);
 
@@ -316,7 +323,7 @@ public class MLogo implements ActionListener {
 
 		e.bind(new LWord(LWord.Type.Prim, "version") {
 			public void eval(Environment e) {
-				System.out.println(MLogo.version);
+				terminal.append(MLogo.version);
 			}
 		});
 
@@ -325,8 +332,7 @@ public class MLogo implements ActionListener {
 				java.util.List<LWord> words = new ArrayList<LWord>(e.words());
 				Collections.sort(words);
 				for(LWord word : words) { System.out.print(word + " "); }
-				System.out.println();
-				System.out.println();
+				terminal.append(">" + newline + ">" + newline);
 			}
 		});
 
@@ -353,13 +359,13 @@ public class MLogo implements ActionListener {
 
 		e.bind(new LWord(LWord.Type.Prim, "print") {
 			public void eval(Environment e) {
-				System.out.println(e.thing(a));
+				terminal.append(">" + e.thing(a).toString() + newline);
 			}
 		}, a);
 
 		e.bind(new LWord(LWord.Type.Prim, "println") {
 			public void eval(Environment e) {
-				System.out.println();
+				terminal.append(">" + newline);
 			}
 		});
 
