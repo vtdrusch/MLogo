@@ -382,5 +382,23 @@ public class MLogo implements ActionListener {
 				e.output(Parser.parse(in.nextLine()));
 			}
 		});
+		
+		e.bind(new LWord(LWord.Type.Prim, "help") {
+			public void eval(Environment e) {
+				help.append("Filler help message");
+			}
+		});
+		
+		e.bind(new LWord(LWord.Type.Prim, "clrwindow") {
+			public void eval(Environment e) {
+				terminal.setText("");
+			}
+		});
+		
+		e.bind(new LWord(LWord.Type.Prim, "clrhelp") {
+			public void eval(Environment e) {
+				help.setText("");
+			}
+		});
 	}
 }
