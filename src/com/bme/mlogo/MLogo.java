@@ -13,10 +13,11 @@ import static com.bme.logo.Primitives.*;
 public class MLogo implements ActionListener {
 	static final String version = "MLogo 0.2";
 	private final static String newline = "\n";
+	private String input = "";
+	private static JFrame frame;
 	private JTextField listener;
 	private JTextArea terminal;
-	private static JFrame frame;
-	private String input = "";
+	private JTextArea help;
 	
 	public MLogo(boolean interactive, boolean turtles, boolean trace, java.util.List<String> args){
 		Environment e = kernel();
@@ -90,12 +91,12 @@ public class MLogo implements ActionListener {
 				this.input = "";
 			}
 			catch(SyntaxError e) {
-				terminal.append(String.format("syntax error: %s%n", e.getMessage()));
-				terminal.append(String.format("\t%s%n\t", e.line));
+				help.append(String.format("syntax error: %s%n", e.getMessage()));
+				help.append(String.format("\t%s%n\t", e.line));
 				for(int z = 0; z < e.lineIndex; z++) {
-					terminal.append(((Character)(e.line.charAt(z) == '\t' ? '\t' : ' ')).toString());
+					help.append(((Character)(e.line.charAt(z) == '\t' ? '\t' : ' ')).toString());
 				}
-				terminal.append("^" + newline);
+				help.append("^" + newline);
 				this.input = "";
 				env.reset();
 			}
@@ -118,6 +119,9 @@ public class MLogo implements ActionListener {
 		this.terminal = new JTextArea();
 		this.terminal.setEditable(false);
 		
+		this.help = new JTextArea();
+		this.help.setEditable(false);
+		
 		JComponent tab1 = new JScrollPane(terminal);
 		tabbedPane1.addTab("Terminal", null, tab1, "Terminal output");
 				
@@ -126,7 +130,7 @@ public class MLogo implements ActionListener {
 	
 		JTabbedPane tabbedPane2 = new JTabbedPane();
 		
-		JComponent tab3 = makeTextPanel("Panel 1");
+		JComponent tab3 = new JScrollPane(this.help);
 		tabbedPane2.addTab("Teacher", null, tab3, "Teaching module and help menu");
 				
 		JComponent tab4 = makeTextPanel("Panel 2");
@@ -143,10 +147,10 @@ public class MLogo implements ActionListener {
 		this.listener = new JTextField("", 30);
 		this.listener.addActionListener(this);
 		
-		c.fill = GridBagConstraints.HORIZONTAL;
-		c.anchor = GridBagConstraints.NORTHWEST;
-		c.ipadx = 900;
-		c.ipady = 640;
+		c.fill = GridBagConstraints.BOTH;
+		c.anchor = GridBagConstraints.CENTER;
+		c.ipadx = 400;
+		c.ipady = 400;
 		c.gridx = 0;
 		c.gridy = 0;
 		c.gridheight = 2;
@@ -154,6 +158,7 @@ public class MLogo implements ActionListener {
 		c.weighty = 1.0;
 		pane.add(tabbedPane1, c);
 		
+		c.fill = GridBagConstraints.BOTH;
 		c.ipadx = 300;
 		c.ipady = 300;
 		c.gridx = 1;
@@ -163,6 +168,7 @@ public class MLogo implements ActionListener {
 		c.weighty = 0.0;
 		pane.add(turtlePane, c);
 		
+		c.fill = GridBagConstraints.VERTICAL;
 		c.ipadx = 300;
 		c.ipady = 330;
 		c.gridx = 1;
@@ -172,6 +178,7 @@ public class MLogo implements ActionListener {
 		c.weighty = 0.0;
 		pane.add(tabbedPane2, c);
 		
+		c.fill = GridBagConstraints.BOTH;
 		c.ipadx = 0;
 		c.ipady = 15;
 		c.gridx = 0;
@@ -204,6 +211,7 @@ public class MLogo implements ActionListener {
 		//Make sure the new text is visible, even if there
 		//was a selection in the text area.
 		terminal.setCaretPosition(terminal.getDocument().getLength());
+		help.setCaretPosition(help.getDocument().getLength());
 	}
 	
 	private void runString(Environment env, String sourceText, TurtleGraphics t) {
@@ -222,10 +230,10 @@ public class MLogo implements ActionListener {
 			}
 		}
 		catch(RuntimeError e) {
-			terminal.append(String.format("runtime error: %s%n", e.getMessage()));
+			help.append(String.format("runtime error: %s%n", e.getMessage()));
 			//e.printStackTrace();
 			for(LAtom atom : e.trace) {
-				terminal.append(String.format("\tin %s%n", atom));
+				help.append(String.format("\tin %s%n", atom));
 			}
 			this.input = "";
 			env.reset();
@@ -331,7 +339,7 @@ public class MLogo implements ActionListener {
 			public void eval(Environment e) {
 				java.util.List<LWord> words = new ArrayList<LWord>(e.words());
 				Collections.sort(words);
-				for(LWord word : words) { System.out.print(word + " "); }
+				for(LWord word : words) { terminal.append(word + " "); }
 				terminal.append(">" + newline + ">" + newline);
 			}
 		});
