@@ -8,16 +8,19 @@ import java.awt.image.*;
 import java.awt.event.*;
 import java.text.*;
 import javax.swing.*;
+import javax.swing.text.StyledDocument;
+import javax.swing.text.html.HTMLDocument;
+import javax.swing.text.html.HTMLEditorKit;
+
 import static com.bme.logo.Primitives.*;
 
 public class MLogo implements ActionListener {
-	static final String version = "MLogo 0.2";
-	private final static String newline = "\n";
+	static final String version = "Loko v0.2";
 	private String input = "";
 	private static JFrame frame;
 	private JTextField listener;
-	private JTextArea terminal;
-	private JTextArea help;
+	private JTextPane terminal;
+	private JTextPane help;
 	
 	public MLogo(boolean interactive, boolean turtles, boolean trace, java.util.List<String> args){
 		Environment e = kernel();
@@ -43,16 +46,15 @@ public class MLogo implements ActionListener {
 	public static void main(String[] a) {
 		java.util.List<String> args = new ArrayList<String>(Arrays.asList(a));
 
-		boolean printHelp   = args.size() == 0;
-		boolean interactive = false;
+		boolean printHelp   = false;
+		boolean interactive = true;
 		boolean turtles     = false;
 		boolean trace       = false;
 
 		for(int z = args.size() - 1; z >= 0; z--) {
-			if ("-h".equals(args.get(z))) { printHelp   = true; args.remove(z--); continue; }
-			if ("-i".equals(args.get(z))) { interactive = true; args.remove(z--); continue; }
-			if ("-t".equals(args.get(z))) { turtles     = true; args.remove(z--); continue; }
-			if ("-T".equals(args.get(z))) { trace       = true; args.remove(z--); continue; }
+			if ("-h".equals(args.get(z))) { printHelp   = true; interactive = false; args.remove(z--); continue; }
+			if ("-t".equals(args.get(z))) { turtles     = true; interactive = false; args.remove(z--); continue; }
+			if ("-T".equals(args.get(z))) { trace       = true; interactive = false; args.remove(z--); continue; }
 		}
 
 		if (printHelp) {
@@ -60,9 +62,9 @@ public class MLogo implements ActionListener {
 			System.out.println("usage: MLogo [-hit] file ...");
 			System.out.println();
 			System.out.println(" h : print this help message");
-			System.out.println(" i : provide an interactive REPL session");
 			System.out.println(" t : enable turtle graphics during batch mode");
 			System.out.println(" T : enable execution trace");
+			System.out.println(" Default (no args): start an interactive REPL session");
 			System.out.println();
 		}
 		
@@ -71,32 +73,26 @@ public class MLogo implements ActionListener {
 
 	private void repl(Environment env, TurtleGraphics t) {
 		this.initGUI(t);
-		terminal.append(">" + version + newline);
-		terminal.append(">type 'exit' to quit." + newline);
-		//Scanner in = new Scanner(input);
-
+		insertText("<html><b>>" + version + "</b>", terminal);
+		insertText(">type 'exit' to quit.", terminal);
+		
 		while(true) {
 			try {
 				while("".equals(input)){ 
 					try{ Thread.sleep(10); }
 					catch(InterruptedException e){} 
-				}
-				//String line = in.nextLine();
+				}	
 				if ("exit".equals(input)) { break; }
-				//while(Parser.complete(input).size() > 0) {
-					//terminal.append(">");
-					//input += newline;
-				//}
 				runString(env, input, t);
 				this.input = "";
 			}
 			catch(SyntaxError e) {
-				help.append(String.format("syntax error: %s%n", e.getMessage()));
-				help.append(String.format("\t%s%n\t", e.line));
+				insertText(String.format("syntax error: %s%n", e.getMessage()), help);
+				insertText(String.format("\t%s%n\t", e.line), help);
 				for(int z = 0; z < e.lineIndex; z++) {
-					help.append(((Character)(e.line.charAt(z) == '\t' ? '\t' : ' ')).toString());
+					insertText(((Character)(e.line.charAt(z) == '\t' ? '\t' : ' ')).toString(), help);
 				}
-				help.append("^" + newline);
+				insertText("^", help);
 				this.input = "";
 				env.reset();
 			}
@@ -108,30 +104,36 @@ public class MLogo implements ActionListener {
 		JFrame frame = new JFrame(version);
 		frame.setDefaultCloseOperation(JFrame.EXIT_ON_CLOSE);
 		frame.setPreferredSize(new Dimension(1024, 768));
-		frame.setResizable(false);
+		//frame.setResizable(false);
 		
 		JPanel pane = new JPanel();
 		pane.setLayout(new GridBagLayout());
 		GridBagConstraints c = new GridBagConstraints();
 		
+		//set up first tabbed pane (terminal and large turtle graphics window)
 		JTabbedPane tabbedPane1 = new JTabbedPane();
 		
-		this.terminal = new JTextArea();
+		this.terminal = new JTextPane();
 		this.terminal.setEditable(false);
+		this.terminal.setContentType("text/html");
 		
-		this.help = new JTextArea();
-		this.help.setEditable(false);
-		
-		JComponent tab1 = new JScrollPane(terminal);
+		JComponent tab1 = new JScrollPane(this.terminal);
 		tabbedPane1.addTab("Terminal", null, tab1, "Terminal output");
 				
-		JComponent tab2 = makeTextPanel("Panel 2");
+		JComponent tab2 = makeTextPanel("Turtle");
 		tabbedPane1.addTab("Graphics", null, tab2, "Turtle graphics");
 	
+		//set up second tabbed pane (tutor, modules, and libraries)
 		JTabbedPane tabbedPane2 = new JTabbedPane();
+		
+		this.help = new JTextPane();
+		this.help.setEditable(false);
+		this.help.setContentType("text/html");
 		
 		JComponent tab3 = new JScrollPane(this.help);
 		tabbedPane2.addTab("Teacher", null, tab3, "Teaching module and help menu");
+		this.help.setText("Welcome to Loko v0.2! I will be your digital tutor.\n" +
+				"Type help for a list of commands.\n");
 				
 		JComponent tab4 = makeTextPanel("Panel 2");
 		tabbedPane2.addTab("Modules", null, tab4, "Learning modules");
@@ -142,11 +144,14 @@ public class MLogo implements ActionListener {
 		JComponent tab6 = makeTextPanel("Panel 4");
 		tabbedPane2.addTab("Library", null, tab6, "Function library");
 		
+		//add small turtle graphics display
 		JComponent turtlePane = t.getTurtle();
 		
+		//set up user input field
 		this.listener = new JTextField("", 30);
 		this.listener.addActionListener(this);
 		
+		//place components in gridbag layout
 		c.fill = GridBagConstraints.BOTH;
 		c.anchor = GridBagConstraints.CENTER;
 		c.ipadx = 400;
@@ -156,7 +161,7 @@ public class MLogo implements ActionListener {
 		c.gridheight = 2;
 		c.weightx = 1.0;
 		c.weighty = 1.0;
-		pane.add(tabbedPane1, c);
+		pane.add(tabbedPane1, c); //terminal and large graphics pane
 		
 		c.fill = GridBagConstraints.BOTH;
 		c.ipadx = 300;
@@ -166,7 +171,7 @@ public class MLogo implements ActionListener {
 		c.gridheight = 1;
 		c.weightx = 0.0;
 		c.weighty = 0.0;
-		pane.add(turtlePane, c);
+		pane.add(turtlePane, c); //small turtle graphics pane
 		
 		c.fill = GridBagConstraints.VERTICAL;
 		c.ipadx = 300;
@@ -176,7 +181,7 @@ public class MLogo implements ActionListener {
 		c.gridheight = 2;
 		c.weightx = 0.0;
 		c.weighty = 0.0;
-		pane.add(tabbedPane2, c);
+		pane.add(tabbedPane2, c); //tutor and lib pane
 		
 		c.fill = GridBagConstraints.BOTH;
 		c.ipadx = 0;
@@ -186,11 +191,19 @@ public class MLogo implements ActionListener {
 		c.gridheight = 1;
 		c.weightx = 0.0;
 		c.weighty = 0.0;
-		pane.add(listener, c);
+		pane.add(listener, c); //user input pane
 		
 		frame.add(pane);
 		frame.pack();
 		frame.setVisible(true);
+	}
+	
+	public static void insertText(String s, JTextPane pane){
+		HTMLDocument doc = (HTMLDocument)pane.getDocument();
+		HTMLEditorKit editor = (HTMLEditorKit)pane.getEditorKit();
+		try{ editor.insertHTML(doc, doc.getLength(), s, 0, 0, null); }
+		catch(Exception e){ }
+		pane.setCaretPosition(doc.getLength());
 	}
 
 	protected static JComponent makeTextPanel(String text) {
@@ -204,14 +217,8 @@ public class MLogo implements ActionListener {
 	
 	public void actionPerformed(ActionEvent evt) {
 		this.input = listener.getText();
-		terminal.append(">" + this.input + newline);
+		insertText(">" + this.input, terminal);
 		listener.setText("");
-		//if("exit".equals(text)){ System.exit(0); }
-
-		//Make sure the new text is visible, even if there
-		//was a selection in the text area.
-		terminal.setCaretPosition(terminal.getDocument().getLength());
-		help.setCaretPosition(help.getDocument().getLength());
 	}
 	
 	private void runString(Environment env, String sourceText, TurtleGraphics t) {
@@ -230,10 +237,10 @@ public class MLogo implements ActionListener {
 			}
 		}
 		catch(RuntimeError e) {
-			help.append(String.format("runtime error: %s%n", e.getMessage()));
+			insertText(String.format("runtime error: %s%n", e.getMessage()), help);
 			//e.printStackTrace();
 			for(LAtom atom : e.trace) {
-				help.append(String.format("\tin %s%n", atom));
+				insertText(String.format("\tin %s%n", atom), help);
 			}
 			this.input = "";
 			env.reset();
@@ -331,7 +338,7 @@ public class MLogo implements ActionListener {
 
 		e.bind(new LWord(LWord.Type.Prim, "version") {
 			public void eval(Environment e) {
-				terminal.append(MLogo.version);
+				insertText(MLogo.version, terminal);
 			}
 		});
 
@@ -339,8 +346,7 @@ public class MLogo implements ActionListener {
 			public void eval(Environment e) {
 				java.util.List<LWord> words = new ArrayList<LWord>(e.words());
 				Collections.sort(words);
-				for(LWord word : words) { terminal.append(word + " "); }
-				terminal.append(">" + newline + ">" + newline);
+				for(LWord word : words) { insertText(word.toString(), help); }
 			}
 		});
 
@@ -367,13 +373,13 @@ public class MLogo implements ActionListener {
 
 		e.bind(new LWord(LWord.Type.Prim, "print") {
 			public void eval(Environment e) {
-				terminal.append(">" + e.thing(a).toString() + newline);
+				insertText(">" + e.thing(a).toString(), terminal);
 			}
 		}, a);
 
 		e.bind(new LWord(LWord.Type.Prim, "println") {
 			public void eval(Environment e) {
-				terminal.append(">" + newline);
+				insertText(">", terminal);
 			}
 		});
 
@@ -385,7 +391,9 @@ public class MLogo implements ActionListener {
 		
 		e.bind(new LWord(LWord.Type.Prim, "help") {
 			public void eval(Environment e) {
-				help.append("Filler help message");
+				java.util.List<LWord> words = new ArrayList<LWord>(e.words());
+				Collections.sort(words);
+				for(LWord word : words) { insertText(word.toString(), help); }
 			}
 		});
 		
