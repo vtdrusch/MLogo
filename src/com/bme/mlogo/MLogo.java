@@ -4,153 +4,165 @@ import com.bme.logo.*;
 import java.io.*;
 import java.util.*;
 import java.awt.*;
+import java.net.*;
 import java.awt.image.*;
 import java.awt.event.*;
 import java.text.*;
 import javax.swing.*;
+import javax.swing.event.*;
 import javax.swing.text.StyledDocument;
 import javax.swing.text.html.HTMLDocument;
 import javax.swing.text.html.HTMLEditorKit;
 
 import static com.bme.logo.Primitives.*;
 
-public class MLogo implements ActionListener {
-	static final String version = "Loko v0.2";
+public class MLogo implements ActionListener, KeyListener {
+	static final String version = "Loko v0.2.5";
+	static final String instalLoc = "C:/Users/Avion/Documents/GitHub/MLogo/";
+	static URL base;
+	private File saveFile;
 	private String input = "";
+	private String output = "";
+	private int lineCount = 0;
 	private static JFrame frame;
 	private JTextField listener;
 	private JTextPane terminal;
 	private JTextPane help;
-	
-	public MLogo(boolean interactive, boolean turtles, boolean trace, java.util.List<String> args){
+
+	public MLogo(boolean interactive, boolean turtles, boolean trace){
 		Environment e = kernel();
 		primitiveIO(e, trace);
+		try				   { base = new URL("file:///" + instalLoc + "docs/"); }
+		catch(Exception ex){ ex.printStackTrace();							   }
 
-		// the repl always loads turtle graphics primitives,
-		// but they're strictly opt-in for batch mode.
-		if (turtles) {
-			TurtleGraphics t = new TurtleGraphics(e);
-			for(String fileName : args) { runFile(e, fileName, t); }
-			if (interactive) { repl(e, t); }
-			else { System.exit(0); }
-		}
-		else {
-			for(String fileName : args) { runFile(e, fileName, null); }
-			if (interactive) {
-				TurtleGraphics t = new TurtleGraphics(e);
-				repl(e, t);
-			}
-		}
+		saveFile = new File("save/saveFile.txt");		
+		TurtleGraphics t = new TurtleGraphics(e);
+		repl(e, t);
 	}
 
 	public static void main(String[] a) {
-		java.util.List<String> args = new ArrayList<String>(Arrays.asList(a));
-
-		boolean printHelp   = false;
 		boolean interactive = true;
 		boolean turtles     = false;
 		boolean trace       = false;
 
-		for(int z = args.size() - 1; z >= 0; z--) {
-			if ("-h".equals(args.get(z))) { printHelp   = true; interactive = false; args.remove(z--); continue; }
-			if ("-t".equals(args.get(z))) { turtles     = true; interactive = false; args.remove(z--); continue; }
-			if ("-T".equals(args.get(z))) { trace       = true; interactive = false; args.remove(z--); continue; }
-		}
-
-		if (printHelp) {
-			System.out.println(version);
-			System.out.println("usage: MLogo [-hit] file ...");
-			System.out.println();
-			System.out.println(" h : print this help message");
-			System.out.println(" t : enable turtle graphics during batch mode");
-			System.out.println(" T : enable execution trace");
-			System.out.println(" Default (no args): start an interactive REPL session");
-			System.out.println();
-		}
-		
-		new MLogo(interactive, turtles, trace, args);
+		new MLogo(interactive, turtles, trace);
 	}
 
 	private void repl(Environment env, TurtleGraphics t) {
 		this.initGUI(t);
-		insertText("<html><b>>" + version + "</b>", terminal);
-		insertText(">type 'exit' to quit.", terminal);
-		
+		if(this.saveFile.length() != 0){ setInput(this.loadFile(saveFile.getName())); }
+
+		insertText("<b>>Welcome to " + version + "!</b>", terminal);
+		insertText(">Please see the teacher module in the lower right for more information.", terminal);
+		insertText("Hello, I will be your digital tutor.", help);
+		insertText("Type 'help' for a list of commands, type 'exit' to quit.", help);
+
 		while(true) {
+			boolean newInput = true;
 			try {
 				while("".equals(input)){ 
 					try{ Thread.sleep(10); }
 					catch(InterruptedException e){} 
-				}	
-				if ("exit".equals(input)) { break; }
+				}
+				while(Parser.complete(input).size() > 0) {
+					try{ Thread.sleep(10); }
+					catch(InterruptedException e){}
+				}
+				if ("exit".equals(input)) { this.saveEnv(env); break; }
+				if (input.contains("load ")){ newInput = false; }
 				runString(env, input, t);
-				this.input = "";
+				this.lineCount = 0;
+				if(newInput){ this.input = ""; }
 			}
 			catch(SyntaxError e) {
-				insertText(String.format("syntax error: %s%n", e.getMessage()), help);
-				insertText(String.format("\t%s%n\t", e.line), help);
+				insertText(String.format("syntax error: %s", e.getMessage()), help);
+				insertText(String.format("<pre>\t%s</pre>", e.line), help);
+				String spacer = "<pre>\t";
 				for(int z = 0; z < e.lineIndex; z++) {
-					insertText(((Character)(e.line.charAt(z) == '\t' ? '\t' : ' ')).toString(), help);
+					spacer += " ";
 				}
-				insertText("^", help);
+				spacer += "^</pre>";
+				insertText(spacer, help);
+				this.lineCount = 0;
 				this.input = "";
 				env.reset();
 			}
 		}
 		System.exit(0);
 	}
-	
+
 	private void initGUI(TurtleGraphics t){
 		JFrame frame = new JFrame(version);
 		frame.setDefaultCloseOperation(JFrame.EXIT_ON_CLOSE);
 		frame.setPreferredSize(new Dimension(1024, 768));
-		//frame.setResizable(false);
-		
+
 		JPanel pane = new JPanel();
 		pane.setLayout(new GridBagLayout());
 		GridBagConstraints c = new GridBagConstraints();
-		
+
 		//set up first tabbed pane (terminal and large turtle graphics window)
 		JTabbedPane tabbedPane1 = new JTabbedPane();
-		
+
 		this.terminal = new JTextPane();
 		this.terminal.setEditable(false);
 		this.terminal.setContentType("text/html");
-		
+		((HTMLDocument)this.terminal.getDocument()).setBase(base);
+		this.terminal.addHyperlinkListener(new HyperlinkListener(){
+			public void hyperlinkUpdate(HyperlinkEvent e) {
+				if(e.getEventType() == HyperlinkEvent.EventType.ACTIVATED) {
+					if(Desktop.isDesktopSupported()) {
+						try{ Desktop.getDesktop().browse(e.getURL().toURI()); }
+						catch(Exception ex){ System.out.println(ex); }
+					}
+				}
+			}
+		});
+
 		JComponent tab1 = new JScrollPane(this.terminal);
 		tabbedPane1.addTab("Terminal", null, tab1, "Terminal output");
-				
+
 		JComponent tab2 = makeTextPanel("Turtle");
 		tabbedPane1.addTab("Graphics", null, tab2, "Turtle graphics");
-	
+
 		//set up second tabbed pane (tutor, modules, and libraries)
 		JTabbedPane tabbedPane2 = new JTabbedPane();
-		
+
 		this.help = new JTextPane();
 		this.help.setEditable(false);
 		this.help.setContentType("text/html");
-		
+		((HTMLDocument)this.help.getDocument()).setBase(base);
+		this.help.addHyperlinkListener(new HyperlinkListener(){
+			public void hyperlinkUpdate(HyperlinkEvent e) {
+				if(e.getEventType() == HyperlinkEvent.EventType.ACTIVATED) {
+					if(Desktop.isDesktopSupported()) {
+						try{ Desktop.getDesktop().browse(e.getURL().toURI()); }
+						catch(Exception ex){ System.out.println(ex); }
+					}
+				}
+			}
+		});
+
+
 		JComponent tab3 = new JScrollPane(this.help);
 		tabbedPane2.addTab("Teacher", null, tab3, "Teaching module and help menu");
-		this.help.setText("Welcome to Loko v0.2! I will be your digital tutor.\n" +
-				"Type help for a list of commands.\n");
-				
+
 		JComponent tab4 = makeTextPanel("Panel 2");
 		tabbedPane2.addTab("Modules", null, tab4, "Learning modules");
-		
+
 		JComponent tab5 = makeTextPanel("Panel 3");
 		tabbedPane2.addTab("My Files", null, tab5, "User created Logo files");
-		
+
 		JComponent tab6 = makeTextPanel("Panel 4");
 		tabbedPane2.addTab("Library", null, tab6, "Function library");
-		
+
 		//add small turtle graphics display
 		JComponent turtlePane = t.getTurtle();
-		
+
 		//set up user input field
 		this.listener = new JTextField("", 30);
 		this.listener.addActionListener(this);
-		
+		this.listener.addKeyListener(this);
+
 		//place components in gridbag layout
 		c.fill = GridBagConstraints.BOTH;
 		c.anchor = GridBagConstraints.CENTER;
@@ -162,7 +174,7 @@ public class MLogo implements ActionListener {
 		c.weightx = 1.0;
 		c.weighty = 1.0;
 		pane.add(tabbedPane1, c); //terminal and large graphics pane
-		
+
 		c.fill = GridBagConstraints.BOTH;
 		c.ipadx = 300;
 		c.ipady = 300;
@@ -172,7 +184,7 @@ public class MLogo implements ActionListener {
 		c.weightx = 0.0;
 		c.weighty = 0.0;
 		pane.add(turtlePane, c); //small turtle graphics pane
-		
+
 		c.fill = GridBagConstraints.VERTICAL;
 		c.ipadx = 300;
 		c.ipady = 330;
@@ -182,7 +194,7 @@ public class MLogo implements ActionListener {
 		c.weightx = 0.0;
 		c.weighty = 0.0;
 		pane.add(tabbedPane2, c); //tutor and lib pane
-		
+
 		c.fill = GridBagConstraints.BOTH;
 		c.ipadx = 0;
 		c.ipady = 15;
@@ -192,12 +204,12 @@ public class MLogo implements ActionListener {
 		c.weightx = 0.0;
 		c.weighty = 0.0;
 		pane.add(listener, c); //user input pane
-		
+
 		frame.add(pane);
 		frame.pack();
 		frame.setVisible(true);
 	}
-	
+
 	public static void insertText(String s, JTextPane pane){
 		HTMLDocument doc = (HTMLDocument)pane.getDocument();
 		HTMLEditorKit editor = (HTMLEditorKit)pane.getEditorKit();
@@ -207,20 +219,37 @@ public class MLogo implements ActionListener {
 	}
 
 	protected static JComponent makeTextPanel(String text) {
-        JPanel panel = new JPanel(false);
-        JLabel filler = new JLabel(text);
-        filler.setHorizontalAlignment(JLabel.CENTER);
-        panel.setLayout(new GridLayout(1, 1));
-        panel.add(filler);
-        return panel;
-    }
-	
+		JPanel panel = new JPanel(false);
+		JLabel filler = new JLabel(text);
+		filler.setHorizontalAlignment(JLabel.CENTER);
+		panel.setLayout(new GridLayout(1, 1));
+		panel.add(filler);
+		return panel;
+	}
+
 	public void actionPerformed(ActionEvent evt) {
-		this.input = listener.getText();
-		insertText(">" + this.input, terminal);
+		this.input += listener.getText();
+		this.output = listener.getText();
+		try{
+			if(Parser.complete(input).size() > 0){ this.lineCount += 1; this.input += "\n"; }
+		}
+		catch(SyntaxError e){
+			this.lineCount = 0;
+		}
+		if(this.lineCount > 1 && !"end".equals(listener.getText())){ insertText(">>" + this.output, terminal); }
+		else													   { insertText(">" + this.output, terminal);  }
 		listener.setText("");
 	}
-	
+
+	public void keyTyped(KeyEvent e){ }
+
+	public void keyPressed(KeyEvent e){ 
+		Integer keyCode = e.getKeyCode();
+		if(keyCode == 38){ listener.setText(output); }
+	}
+
+	public void keyReleased(KeyEvent e){ }
+
 	private void runString(Environment env, String sourceText, TurtleGraphics t) {
 		try {
 			LList code = Parser.parse(sourceText);
@@ -228,7 +257,7 @@ public class MLogo implements ActionListener {
 			while(true) {
 				// execute until the interpreter is paused
 				if (!Interpreter.runUntil(env)) { return; }
-				
+
 				// update the display until animation is complete
 				while(!t.update()) {
 					try { Thread.sleep(1000 / 30); }
@@ -243,50 +272,19 @@ public class MLogo implements ActionListener {
 				insertText(String.format("\tin %s%n", atom), help);
 			}
 			this.input = "";
+			this.lineCount = 0;
 			env.reset();
 		}
 	}
 
-	private static void runFile(Environment env, String filename, TurtleGraphics t) {
+	private String loadFile(String filename) {
 		try {
-			LList code = Parser.parse(loadFile(filename));
-			if (t == null) {
-				Interpreter.run(code, env);
-				return;
+			File fileIn = new File("save\\" + filename);
+			if(fileIn.length() == 0){
+				insertText("Cannot load empty file.", help);
+				return "";
 			}
-			Interpreter.init(code, env);
-			while(true) {
-				// execute until the interpreter is paused
-				if (!Interpreter.runUntil(env)) { return; }
-				
-				// update the display until animation is complete
-				while(!t.update()) {
-					try { Thread.sleep(1000 / 30); }
-					catch(InterruptedException e) {}
-				}
-			}
-		}
-		catch(SyntaxError e) {
-			System.out.format("%d: syntax error: %s%n", e.lineNumber, e.getMessage());
-			System.out.format("\t%s%n\t", e.line);
-			for(int z = 0; z < e.lineIndex; z++) {
-				System.out.print(e.line.charAt(z) == '\t' ? '\t' : ' ');
-			}
-			System.out.println("^");
-			System.exit(1);
-		}
-		catch(RuntimeError e) {
-			System.out.format("runtime error: %s%n", e.getMessage());
-			for(LAtom atom : e.trace) {
-				System.out.format("\tin %s%n", atom);
-			}
-			System.exit(1);
-		}
-	}
-
-	private static String loadFile(String filename) {
-		try {
-			Scanner in = new Scanner(new File(filename));
+			Scanner in = new Scanner(fileIn);
 			StringBuilder ret = new StringBuilder();
 			while(in.hasNextLine()) {
 				// this will conveniently convert platform-specific
@@ -298,10 +296,46 @@ public class MLogo implements ActionListener {
 			return ret.toString();
 		}
 		catch(IOException e) {
-			System.err.format("Unable to load file '%s'.%n", filename);
-			System.exit(1);
+			insertText(String.format("Unable to load file '%s'.%n", filename), help);
 			return null;
 		}
+	}
+
+	//TODO
+	private void saveEnv(Environment e){
+		try{
+			saveFile.getParentFile().mkdirs();
+
+			PrintWriter writer = new PrintWriter(saveFile);
+			java.util.List<LWord> words = new ArrayList<LWord>(e.words());
+			Collections.sort(words);
+			for(LWord word : words){
+				if(e.thing(word) instanceof LNumber){ 
+					writer.println("local " + word.toString() + " " + ((LNumber)e.thing(word)).value);
+					writer.println();
+				}
+				if(e.thing(word) instanceof LWord){ 
+					writer.println("local " + word.toString() + " " + ((LWord)e.thing(word)).value);
+					writer.println();
+				}
+				if(e.thing(word) instanceof LList){
+					String sourceText = ((LList)e.thing(word)).sourceText;
+					if(!"".equals(sourceText)){
+						writer.println(sourceText.replaceAll("[\\n]", System.getProperty("line.separator")));
+						writer.println();
+					}
+				}
+			}
+			writer.close();
+			insertText("Environment state saved.", help);
+		}
+		catch(IOException ex){
+			insertText("Unable to save to save.txt", help);
+		}
+	}
+
+	public void setInput(String in){
+		this.input = in;
 	}
 
 	private void primitiveIO(Environment e, boolean trace) {
@@ -316,16 +350,16 @@ public class MLogo implements ActionListener {
 
 				public void callPrimitive(String name, Map<LAtom, LAtom> args) {
 					System.out.format("trace: PRIM %s%s%n",
-						name,
-						args.size() > 0 ? " " + args : ""
-					);
+							name,
+							args.size() > 0 ? " " + args : ""
+							);
 				}
 				public void call(String name, Map<LAtom, LAtom> args, boolean tail) {
 					System.out.format("trace: CALL %s%s%s%n",
-						name,
-						args.size() > 0 ? " " + args : "",
-						tail ? " (tail)" : ""
-					);
+							name,
+							args.size() > 0 ? " " + args : "",
+									tail ? " (tail)" : ""
+							);
 				}
 				public void output(String name, LAtom val, boolean implicit) {
 					System.out.format("trace: RETURN %s- %s%s%n", name, val, implicit ? " (implicit)" : "");
@@ -346,7 +380,11 @@ public class MLogo implements ActionListener {
 			public void eval(Environment e) {
 				java.util.List<LWord> words = new ArrayList<LWord>(e.words());
 				Collections.sort(words);
-				for(LWord word : words) { insertText(word.toString(), help); }
+				Integer count = 1;
+				for(LWord word : words) {
+					insertText(count.toString() + " " + word.toString(), help); 
+					count += 1; 
+				}
 			}
 		});
 
@@ -388,24 +426,50 @@ public class MLogo implements ActionListener {
 				e.output(Parser.parse(in.nextLine()));
 			}
 		});
-		
+
 		e.bind(new LWord(LWord.Type.Prim, "help") {
 			public void eval(Environment e) {
 				java.util.List<LWord> words = new ArrayList<LWord>(e.words());
 				Collections.sort(words);
-				for(LWord word : words) { insertText(word.toString(), help); }
+				for(LWord word : words) {
+					String args = " ";
+					if(e.thing(word) instanceof LList){
+						LList list = Primitives.list(e, word);
+						if(list.arguments != null){ args += list.arguments.toString(); }
+						else					  { args += "[]";					   }
+					}
+					if(e.thing(word) instanceof LNumber){
+						args += ((Integer)((LNumber)e.thing(word)).value).toString();
+					}
+					insertText("<a href=\"" + word + ".html\">" + word.toString() + "</a>" + args, help);
+				}
 			}
 		});
-		
+
 		e.bind(new LWord(LWord.Type.Prim, "clrwindow") {
 			public void eval(Environment e) {
 				terminal.setText("");
 			}
 		});
-		
+
 		e.bind(new LWord(LWord.Type.Prim, "clrhelp") {
 			public void eval(Environment e) {
 				help.setText("");
+			}
+		});
+		e.bind(new LWord(LWord.Type.Prim, "load") {
+			public void eval(Environment e) {
+				LAtom o = e.thing(a);
+				String arg = o.toString();
+				char[] chars = arg.toCharArray();
+				StringBuilder filename = new StringBuilder();
+				for(int i = 1; i < chars.length - 1; i += 1){ filename.append(chars[i]); }
+				setInput(loadFile(filename.toString()));
+			}
+		}, a);
+		e.bind(new LWord(LWord.Type.Prim, "save") {
+			public void eval(Environment e) {
+				saveEnv(e);
 			}
 		});
 	}

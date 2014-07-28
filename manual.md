@@ -41,7 +41,7 @@ A few primitives modify the operation of the interpreter as described above. The
 When an indeterminate or infinite number of iterations are desired for a loop, a procedure may invoke itself recursively. Logo will perform tail-call optimization (TCO) on direct tail-recursive calls which return a result or are the final statement in a procedure. Consider two ways of writing a simple counting loop:
 
 	to one :x
-		print x
+		print :x
 		if equal? :x 1 [stop]
 		one difference :x 1
 	end

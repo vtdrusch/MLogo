@@ -40,9 +40,9 @@ public class TurtleGraphics {
 	}
 	
 	public void primitiveTurtle(Environment e) {
-		final LWord a = new LWord(LWord.Type.Name, "argument1");
-		final LWord b = new LWord(LWord.Type.Name, "argument2");
-		final LWord c = new LWord(LWord.Type.Name, "argument3");
+		final LWord a = new LWord(LWord.Type.Name, "arg1");
+		final LWord b = new LWord(LWord.Type.Name, "arg2");
+		final LWord c = new LWord(LWord.Type.Name, "arg3");
 
 		e.bind(new LWord(LWord.Type.Prim, "forward") {
 			public void eval(Environment e) {
