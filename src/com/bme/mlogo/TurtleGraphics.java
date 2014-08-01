@@ -9,15 +9,21 @@ import static com.bme.logo.Primitives.*;
 
 public class TurtleGraphics {
 
-	static final int WIDTH  = 375;
-	static final int HEIGHT = 315;
-	private final Image buffer = new BufferedImage(WIDTH, HEIGHT, BufferedImage.TYPE_INT_ARGB);
-	private final Turtle turtle = new Turtle();
-	private final TurtlePanel turtlePanel = new TurtlePanel(turtle, buffer);
-	private final Graphics g = buffer.getGraphics();
-	private final Environment e;
+	static int WIDTH;
+	static int HEIGHT;
+	private Image buffer;
+	private Turtle turtle;
+	private TurtlePanel turtlePanel;
+	private Graphics g; 
+	private Environment e;
 
-	public TurtleGraphics(Environment e) {
+	public TurtleGraphics(Environment e, int width, int height) {
+		TurtleGraphics.WIDTH = width;
+		TurtleGraphics.HEIGHT = height;
+		buffer = new BufferedImage(WIDTH, HEIGHT, BufferedImage.TYPE_INT_ARGB);
+		turtle = new Turtle();
+		turtlePanel = new TurtlePanel(turtle, buffer);
+		this.g = buffer.getGraphics();
 		this.e = e;
 		primitiveTurtle(e);
 	}
@@ -32,6 +38,15 @@ public class TurtleGraphics {
 			turtle.window = this.turtlePanel;
 			turtle.window.setPreferredSize(new Dimension(WIDTH, HEIGHT));
 		}
+	}
+	
+	public void resize(int width, int height){
+		TurtleGraphics.WIDTH = width;
+		TurtleGraphics.HEIGHT = height;
+		buffer = new BufferedImage(WIDTH, HEIGHT, BufferedImage.TYPE_INT_ARGB);
+		turtle = new Turtle();
+		turtlePanel = new TurtlePanel(turtle, buffer);
+		g = buffer.getGraphics();
 	}
 
 	protected JComponent getTurtle(){

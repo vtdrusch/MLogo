@@ -10,13 +10,14 @@ import java.awt.event.*;
 import java.text.*;
 import javax.swing.*;
 import javax.swing.event.*;
+import javax.swing.text.PlainDocument;
 import javax.swing.text.StyledDocument;
 import javax.swing.text.html.HTMLDocument;
 import javax.swing.text.html.HTMLEditorKit;
 
 import static com.bme.logo.Primitives.*;
 
-public class MLogo implements ActionListener, KeyListener {
+public class MLogo implements ActionListener, KeyListener, ChangeListener {
 	static final String version = "Loko v0.2.5";
 	static final String instalLoc = "C:/Users/Avion/Documents/GitHub/MLogo/";
 	static URL base;
@@ -24,19 +25,27 @@ public class MLogo implements ActionListener, KeyListener {
 	private String input = "";
 	private String output = "";
 	private int lineCount = 0;
-	private static JFrame frame;
+	private JFrame frame;
+	private JPanel pane;
+	private TurtleGraphics t;
+	private JTabbedPane tabbedPane1;
 	private JTextField listener;
 	private JTextPane terminal;
 	private JTextPane help;
+	private JTextArea editor;
+	private JComponent turtlePane;
+	private Environment e;
+	private boolean changeTab = true;
+	private int currentTab = 0;
 
 	public MLogo(boolean interactive, boolean turtles, boolean trace){
-		Environment e = kernel();
+		this.e = kernel();
 		primitiveIO(e, trace);
 		try				   { base = new URL("file:///" + instalLoc + "docs/"); }
 		catch(Exception ex){ ex.printStackTrace();							   }
 
 		saveFile = new File("save/saveFile.txt");		
-		TurtleGraphics t = new TurtleGraphics(e);
+		t = new TurtleGraphics(e, 375, 315);
 		repl(e, t);
 	}
 
@@ -92,16 +101,32 @@ public class MLogo implements ActionListener, KeyListener {
 	}
 
 	private void initGUI(TurtleGraphics t){
-		JFrame frame = new JFrame(version);
+		this.frame = new JFrame(version);
 		frame.setDefaultCloseOperation(JFrame.EXIT_ON_CLOSE);
 		frame.setPreferredSize(new Dimension(1024, 768));
 
-		JPanel pane = new JPanel();
+		this.pane = new JPanel();
 		pane.setLayout(new GridBagLayout());
 		GridBagConstraints c = new GridBagConstraints();
 
+		//create turtle graphics display
+		this.turtlePane = t.getTurtle();
+
 		//set up first tabbed pane (terminal and large turtle graphics window)
-		JTabbedPane tabbedPane1 = new JTabbedPane();
+		this.tabbedPane1 = new JTabbedPane();
+		tabbedPane1.addChangeListener(this);
+
+		this.editor = new JTextArea();
+		this.editor.setTabSize(4);
+		JComponent tab0 = this.editor;
+		this.tabbedPane1.add(tab0, 0);
+		this.tabbedPane1.setTitleAt(0, "Editor");
+		this.tabbedPane1.setToolTipTextAt(0, "Program Editor Window");
+
+		JComponent tab1 = new JPanel();
+		this.tabbedPane1.add(tab1, 1);
+		this.tabbedPane1.setTitleAt(1, "Graphics");
+		this.tabbedPane1.setToolTipTextAt(1, "Large Turtle Graphics Display");
 
 		this.terminal = new JTextPane();
 		this.terminal.setEditable(false);
@@ -118,11 +143,14 @@ public class MLogo implements ActionListener, KeyListener {
 			}
 		});
 
-		JComponent tab1 = new JScrollPane(this.terminal);
-		tabbedPane1.addTab("Terminal", null, tab1, "Terminal output");
+		//add terminal to scrolling pane
+		JScrollPane termScroll = new JScrollPane(this.terminal);
 
-		JComponent tab2 = makeTextPanel("Turtle");
-		tabbedPane1.addTab("Graphics", null, tab2, "Turtle graphics");
+		JSplitPane splitPane = new JSplitPane(JSplitPane.VERTICAL_SPLIT, tabbedPane1, termScroll);
+		splitPane.setOneTouchExpandable(true);
+		splitPane.setDividerLocation(400);
+		//splitPane.getTopComponent().setMinimumSize(new Dimension());
+		//splitPane.setDividerLocation(0);
 
 		//set up second tabbed pane (tutor, modules, and libraries)
 		JTabbedPane tabbedPane2 = new JTabbedPane();
@@ -155,9 +183,6 @@ public class MLogo implements ActionListener, KeyListener {
 		JComponent tab6 = makeTextPanel("Panel 4");
 		tabbedPane2.addTab("Library", null, tab6, "Function library");
 
-		//add small turtle graphics display
-		JComponent turtlePane = t.getTurtle();
-
 		//set up user input field
 		this.listener = new JTextField("", 30);
 		this.listener.addActionListener(this);
@@ -173,17 +198,7 @@ public class MLogo implements ActionListener, KeyListener {
 		c.gridheight = 2;
 		c.weightx = 1.0;
 		c.weighty = 1.0;
-		pane.add(tabbedPane1, c); //terminal and large graphics pane
-
-		c.fill = GridBagConstraints.BOTH;
-		c.ipadx = 300;
-		c.ipady = 300;
-		c.gridx = 1;
-		c.gridy = 0;
-		c.gridheight = 1;
-		c.weightx = 0.0;
-		c.weighty = 0.0;
-		pane.add(turtlePane, c); //small turtle graphics pane
+		pane.add(splitPane, c); //split pane
 
 		c.fill = GridBagConstraints.VERTICAL;
 		c.ipadx = 300;
@@ -205,17 +220,19 @@ public class MLogo implements ActionListener, KeyListener {
 		c.weighty = 0.0;
 		pane.add(listener, c); //user input pane
 
+		c.fill = GridBagConstraints.BOTH;
+		c.ipadx = 300;
+		c.ipady = 300;
+		c.gridx = 1;
+		c.gridy = 0;
+		c.gridheight = 1;
+		c.weightx = 0.0;
+		c.weighty = 0.0;
+		pane.add(turtlePane, c); //small turtle graphics pane
+
 		frame.add(pane);
 		frame.pack();
 		frame.setVisible(true);
-	}
-
-	public static void insertText(String s, JTextPane pane){
-		HTMLDocument doc = (HTMLDocument)pane.getDocument();
-		HTMLEditorKit editor = (HTMLEditorKit)pane.getEditorKit();
-		try{ editor.insertHTML(doc, doc.getLength(), s, 0, 0, null); }
-		catch(Exception e){ }
-		pane.setCaretPosition(doc.getLength());
 	}
 
 	protected static JComponent makeTextPanel(String text) {
@@ -241,14 +258,68 @@ public class MLogo implements ActionListener, KeyListener {
 		listener.setText("");
 	}
 
-	public void keyTyped(KeyEvent e){ }
-
 	public void keyPressed(KeyEvent e){ 
 		Integer keyCode = e.getKeyCode();
 		if(keyCode == 38){ listener.setText(output); }
 	}
 
 	public void keyReleased(KeyEvent e){ }
+
+	public void keyTyped(KeyEvent e){ }
+
+	public void stateChanged(ChangeEvent e){ 
+		int index = this.tabbedPane1.getSelectedIndex();
+		if(changeTab){
+			if(index == 1){ 
+				changeTab = false;
+				this.pane.remove(turtlePane);
+				this.tabbedPane1.remove(1);
+				this.t.resize(this.tabbedPane1.getWidth(), this.tabbedPane1.getHeight());
+				this.turtlePane = t.getTurtle();
+				JComponent tab = this.turtlePane;
+				this.tabbedPane1.add(tab, 1);
+				this.tabbedPane1.setTitleAt(1, "Graphics");
+				this.tabbedPane1.setToolTipTextAt(1, "Large Turtle Graphics Display");
+				frame.pack();
+
+				this.tabbedPane1.setSelectedIndex(1);
+				this.changeTab = true;
+			}
+			else if(currentTab == 1){
+				if(this.tabbedPane1.getTabCount() > 1){
+					changeTab = false;
+					this.tabbedPane1.remove(1);
+					JComponent tab = new JPanel();
+					this.tabbedPane1.add(tab, 1);
+					this.tabbedPane1.setTitleAt(1, "Graphics");
+					this.tabbedPane1.setToolTipTextAt(1, "Large Turtle Graphics Display");
+					changeTab = true;
+				}
+				this.t.resize(375, 315);
+				this.turtlePane = t.getTurtle();
+				GridBagConstraints c = new GridBagConstraints();
+				c.fill = GridBagConstraints.BOTH;
+				c.ipadx = 300;
+				c.ipady = 300;
+				c.gridx = 1;
+				c.gridy = 0;
+				c.gridheight = 1;
+				c.weightx = 0.0;
+				c.weighty = 0.0;
+				pane.add(turtlePane, c);
+				frame.pack();
+			}
+		}
+		this.currentTab = index;
+	}
+
+	public static void insertText(String s, JTextPane pane){
+		HTMLDocument doc = (HTMLDocument)pane.getDocument();
+		HTMLEditorKit editor = (HTMLEditorKit)pane.getEditorKit();
+		try{ editor.insertHTML(doc, doc.getLength(), s, 0, 0, null); }
+		catch(Exception e){ }
+		pane.setCaretPosition(doc.getLength());
+	}
 
 	private void runString(Environment env, String sourceText, TurtleGraphics t) {
 		try {
@@ -279,7 +350,7 @@ public class MLogo implements ActionListener, KeyListener {
 
 	private String loadFile(String filename) {
 		try {
-			File fileIn = new File("save\\" + filename);
+			File fileIn = new File("save/" + filename);
 			if(fileIn.length() == 0){
 				insertText("Cannot load empty file.", help);
 				return "";
@@ -291,6 +362,7 @@ public class MLogo implements ActionListener, KeyListener {
 				// newlines into an internal unix-style convention:
 				ret.append(in.nextLine()+"\n");
 			}
+			in.close();
 			// shave off the trailing newline we just inserted:
 			ret.deleteCharAt(ret.length()-1);
 			return ret.toString();
@@ -315,14 +387,28 @@ public class MLogo implements ActionListener, KeyListener {
 					writer.println();
 				}
 				if(e.thing(word) instanceof LWord){ 
-					writer.println("local " + word.toString() + " " + ((LWord)e.thing(word)).value);
+					writer.println("local " + word.toString() + " '" + ((LWord)e.thing(word)).value);
 					writer.println();
 				}
 				if(e.thing(word) instanceof LList){
-					String sourceText = ((LList)e.thing(word)).sourceText;
+					LList list = ((LList)e.thing(word));
+					String sourceText = list.sourceText;
 					if(!"".equals(sourceText)){
-						writer.println(sourceText.replaceAll("[\\n]", System.getProperty("line.separator")));
+						writer.println(sourceText.replaceAll("\n", System.getProperty("line.separator")));
 						writer.println();
+					}
+					else{
+						sourceText = list.toString();
+						if(!sourceText.contains("@")){
+							if(list.arguments != null){
+								sourceText = "local " + word.toString() + " bind " + list.arguments.toString() + sourceText;
+							}
+							else{
+								sourceText = "local " + word.toString() + " " + sourceText;
+							}
+							writer.println(sourceText);
+							writer.println();
+						}
 					}
 				}
 			}
@@ -330,7 +416,7 @@ public class MLogo implements ActionListener, KeyListener {
 			insertText("Environment state saved.", help);
 		}
 		catch(IOException ex){
-			insertText("Unable to save to save.txt", help);
+			insertText("Unable to save to saveFile.txt", help);
 		}
 	}
 
@@ -382,7 +468,11 @@ public class MLogo implements ActionListener, KeyListener {
 				Collections.sort(words);
 				Integer count = 1;
 				for(LWord word : words) {
-					insertText(count.toString() + " " + word.toString(), help); 
+					String type = "";
+					if(e.thing(word) instanceof LList){ type = " list"; }
+					if(e.thing(word) instanceof LWord){ type = " word"; }
+					if(e.thing(word) instanceof LNumber){ type = " number"; }
+					insertText(count.toString() + " " + word.toString() + type, help); 
 					count += 1; 
 				}
 			}
@@ -472,5 +562,36 @@ public class MLogo implements ActionListener, KeyListener {
 				saveEnv(e);
 			}
 		});
+		e.bind(new LWord(LWord.Type.Prim, "saveTo") {
+			public void eval(Environment e) {
+				LAtom o = e.thing(a);
+				String arg = o.toString();
+				char[] chars = arg.toCharArray();
+				StringBuilder filename = new StringBuilder();
+				for(int i = 1; i < chars.length - 1; i += 1){ filename.append(chars[i]); }
+				File file = new File("save/" + filename.toString());
+				
+				try{
+					file.getParentFile().mkdirs();
+					
+					PrintWriter writer = new PrintWriter(file);
+					writer.println(editor.getText().replaceAll("\n", System.getProperty("line.separator")));
+					writer.close();
+				}
+				catch(IOException ex){
+					insertText("Could not write to file", help);
+				}
+			}
+		}, a);
+		e.bind(new LWord(LWord.Type.Prim, "edit") {
+			public void eval(Environment e) {
+				LAtom o = e.thing(a);
+				String arg = o.toString();
+				char[] chars = arg.toCharArray();
+				StringBuilder filename = new StringBuilder();
+				for(int i = 1; i < chars.length - 1; i += 1){ filename.append(chars[i]); }
+				editor.setText(loadFile(filename.toString()));
+			}
+		}, a);
 	}
 }
