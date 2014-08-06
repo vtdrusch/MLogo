@@ -43,6 +43,7 @@ public class TurtleGraphics {
 	public void resize(int width, int height){
 		TurtleGraphics.WIDTH = width;
 		TurtleGraphics.HEIGHT = height;
+		//turtlePanel.resize();
 		buffer = new BufferedImage(WIDTH, HEIGHT, BufferedImage.TYPE_INT_ARGB);
 		turtle = new Turtle();
 		turtlePanel = new TurtlePanel(turtle, buffer);
@@ -209,6 +210,12 @@ class TurtlePanel extends JPanel {
 		this.turtle = turtle;
 		this.buffer = buffer;
 		this.penStat(turtle.pendown, turtle.pencolor, turtle.heading, turtle.x, turtle.y);
+	}
+	
+	//unfinished pending a rework of the resizing process for graphics panes, not used in this version of MLogo
+	public void resize(){
+		setPreferredSize(new Dimension(TurtleGraphics.WIDTH, TurtleGraphics.HEIGHT));
+		penStat(turtle.pendown, turtle.pencolor, turtle.degrees, turtle.x, turtle.y);
 	}
 	
 	public void penStat(boolean pendown, Color pencolor, int degrees, double x, double y){

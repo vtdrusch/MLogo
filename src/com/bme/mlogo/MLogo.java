@@ -10,16 +10,15 @@ import java.awt.event.*;
 import java.text.*;
 import javax.swing.*;
 import javax.swing.event.*;
-import javax.swing.text.PlainDocument;
-import javax.swing.text.StyledDocument;
+import javax.swing.text.*;
 import javax.swing.text.html.HTMLDocument;
 import javax.swing.text.html.HTMLEditorKit;
 
 import static com.bme.logo.Primitives.*;
 
 public class MLogo implements ActionListener, KeyListener, ChangeListener {
-	static final String version = "Loko v0.2.5";
-	static final String instalLoc = "C:/Users/Avion/Documents/GitHub/MLogo/";
+	static final String version = "Loko v0.5";
+	static final String fileLoc = System.getProperty("user.dir");
 	static URL base;
 	private File saveFile;
 	private String input = "";
@@ -32,7 +31,7 @@ public class MLogo implements ActionListener, KeyListener, ChangeListener {
 	private JTextField listener;
 	private JTextPane terminal;
 	private JTextPane help;
-	private JTextArea editor;
+	private TextEditor editor;
 	private JComponent turtlePane;
 	private Environment e;
 	private boolean changeTab = true;
@@ -41,10 +40,10 @@ public class MLogo implements ActionListener, KeyListener, ChangeListener {
 	public MLogo(boolean interactive, boolean turtles, boolean trace){
 		this.e = kernel();
 		primitiveIO(e, trace);
-		try				   { base = new URL("file:///" + instalLoc + "docs/"); }
-		catch(Exception ex){ ex.printStackTrace();							   }
-
-		saveFile = new File("save/saveFile.txt");		
+		try				   { base = new URL("file:///" + fileLoc + "/docs/"); }
+		catch(Exception ex){ ex.printStackTrace();							  }
+		
+		saveFile = new File("save/saveFile");		
 		t = new TurtleGraphics(e, 375, 315);
 		repl(e, t);
 	}
@@ -101,33 +100,38 @@ public class MLogo implements ActionListener, KeyListener, ChangeListener {
 	}
 
 	private void initGUI(TurtleGraphics t){
+		//initialize the gui frame
 		this.frame = new JFrame(version);
 		frame.setDefaultCloseOperation(JFrame.EXIT_ON_CLOSE);
 		frame.setPreferredSize(new Dimension(1024, 768));
 
+		//initialize the top level panel for element display
 		this.pane = new JPanel();
 		pane.setLayout(new GridBagLayout());
 		GridBagConstraints c = new GridBagConstraints();
 
-		//create turtle graphics display
+		//create small turtle graphics display
 		this.turtlePane = t.getTurtle();
 
-		//set up first tabbed pane (terminal and large turtle graphics window)
+		//set up first tabbed pane (terminal, large turtle graphics window)
 		this.tabbedPane1 = new JTabbedPane();
 		tabbedPane1.addChangeListener(this);
-
-		this.editor = new JTextArea();
-		this.editor.setTabSize(4);
+		
+		this.editor = new TextEditor(this);
 		JComponent tab0 = this.editor;
+
+		//add editor tab to first tab pane
 		this.tabbedPane1.add(tab0, 0);
 		this.tabbedPane1.setTitleAt(0, "Editor");
 		this.tabbedPane1.setToolTipTextAt(0, "Program Editor Window");
 
+		//add large graphics tab to first tab pane
 		JComponent tab1 = new JPanel();
 		this.tabbedPane1.add(tab1, 1);
 		this.tabbedPane1.setTitleAt(1, "Graphics");
 		this.tabbedPane1.setToolTipTextAt(1, "Large Turtle Graphics Display");
 
+		//set up terminal window
 		this.terminal = new JTextPane();
 		this.terminal.setEditable(false);
 		this.terminal.setContentType("text/html");
@@ -137,7 +141,7 @@ public class MLogo implements ActionListener, KeyListener, ChangeListener {
 				if(e.getEventType() == HyperlinkEvent.EventType.ACTIVATED) {
 					if(Desktop.isDesktopSupported()) {
 						try{ Desktop.getDesktop().browse(e.getURL().toURI()); }
-						catch(Exception ex){ System.out.println(ex); }
+						catch(Exception ex){ insertText("Invalid link.", help); }
 					}
 				}
 			}
@@ -146,13 +150,15 @@ public class MLogo implements ActionListener, KeyListener, ChangeListener {
 		//add terminal to scrolling pane
 		JScrollPane termScroll = new JScrollPane(this.terminal);
 
+		//add scrolling terminal pane and first tab pane to split pane
 		JSplitPane splitPane = new JSplitPane(JSplitPane.VERTICAL_SPLIT, tabbedPane1, termScroll);
 		splitPane.setOneTouchExpandable(true);
 		splitPane.setDividerLocation(400);
+		//this code sets the split pane to show only the terminal window by default
 		//splitPane.getTopComponent().setMinimumSize(new Dimension());
 		//splitPane.setDividerLocation(0);
 
-		//set up second tabbed pane (tutor, modules, and libraries)
+		//set up second tabbed pane (tutor, modules, libraries)
 		JTabbedPane tabbedPane2 = new JTabbedPane();
 
 		this.help = new JTextPane();
@@ -164,7 +170,8 @@ public class MLogo implements ActionListener, KeyListener, ChangeListener {
 				if(e.getEventType() == HyperlinkEvent.EventType.ACTIVATED) {
 					if(Desktop.isDesktopSupported()) {
 						try{ Desktop.getDesktop().browse(e.getURL().toURI()); }
-						catch(Exception ex){ System.out.println(ex); }
+						catch(Exception ex){ insertText("Cannot find HTML documentation for this word, please ensure that this word's " +
+								"corresponding documentation is in the docs folder.", help); }
 					}
 				}
 			}
@@ -373,7 +380,6 @@ public class MLogo implements ActionListener, KeyListener, ChangeListener {
 		}
 	}
 
-	//TODO
 	private void saveEnv(Environment e){
 		try{
 			saveFile.getParentFile().mkdirs();
@@ -416,12 +422,20 @@ public class MLogo implements ActionListener, KeyListener, ChangeListener {
 			insertText("Environment state saved.", help);
 		}
 		catch(IOException ex){
-			insertText("Unable to save to saveFile.txt", help);
+			insertText("Unable to save to saveFile", help);
 		}
+	}
+	
+	public String getVersion(){
+		return MLogo.version;
 	}
 
 	public void setInput(String in){
 		this.input = in;
+	}
+	
+	public void setTitle(String title){
+		this.frame.setTitle(title);
 	}
 
 	private void primitiveIO(Environment e, boolean trace) {
@@ -562,25 +576,15 @@ public class MLogo implements ActionListener, KeyListener, ChangeListener {
 				saveEnv(e);
 			}
 		});
-		e.bind(new LWord(LWord.Type.Prim, "saveTo") {
+		e.bind(new LWord(LWord.Type.Prim, "saveFile") {
 			public void eval(Environment e) {
 				LAtom o = e.thing(a);
 				String arg = o.toString();
 				char[] chars = arg.toCharArray();
 				StringBuilder filename = new StringBuilder();
 				for(int i = 1; i < chars.length - 1; i += 1){ filename.append(chars[i]); }
-				File file = new File("save/" + filename.toString());
-				
-				try{
-					file.getParentFile().mkdirs();
-					
-					PrintWriter writer = new PrintWriter(file);
-					writer.println(editor.getText().replaceAll("\n", System.getProperty("line.separator")));
-					writer.close();
-				}
-				catch(IOException ex){
-					insertText("Could not write to file", help);
-				}
+				String file = ("save/" + filename.toString());
+				editor.saveFile(file);
 			}
 		}, a);
 		e.bind(new LWord(LWord.Type.Prim, "edit") {
@@ -590,8 +594,187 @@ public class MLogo implements ActionListener, KeyListener, ChangeListener {
 				char[] chars = arg.toCharArray();
 				StringBuilder filename = new StringBuilder();
 				for(int i = 1; i < chars.length - 1; i += 1){ filename.append(chars[i]); }
-				editor.setText(loadFile(filename.toString()));
+				String file = ("save/" + filename.toString());
+				editor.openFile(file);
 			}
 		}, a);
+	}
+}
+
+class TextEditor extends JPanel {
+	private static final long serialVersionUID = 1L;
+	private MLogo mlogo;
+	private JTextArea editor = new JTextArea();
+	private JFileChooser fileSelect = new JFileChooser(System.getProperty("user.dir") + "/save/");
+	private String currentFile = "New File";
+	private String input = "";
+	private boolean changed = false;
+
+	public TextEditor(MLogo m) {
+		this.mlogo = m;
+		this.editor.setTabSize(4);
+		this.setLayout(new BorderLayout());
+		
+		JScrollPane scroll = new JScrollPane(editor);
+		
+		JToolBar toolBar = new JToolBar();
+		toolBar.add(New);
+		toolBar.add(Open);
+		toolBar.add(Save);
+		toolBar.add(SaveAs);
+		
+		toolBar.addSeparator();
+		
+		JButton cut = toolBar.add(Cut); 
+		JButton	copy = toolBar.add(Copy); 
+		JButton	paste = toolBar.add(Paste);
+		
+		toolBar.addSeparator();
+		
+		toolBar.add(Run); 
+		toolBar.add(SaveRun);
+				
+		cut.setText("Cut");
+		copy.setText("Copy");
+		paste.setText("Paste");
+		
+		Save.setEnabled(false);
+		SaveAs.setEnabled(false);
+		
+		editor.addKeyListener(k1);
+		
+		this.add(scroll, BorderLayout.CENTER);
+		this.add(toolBar, BorderLayout.NORTH);
+		
+		mlogo.setTitle(mlogo.getVersion() + ", Editing: " + this.currentFile);
+	}
+	
+	private KeyListener k1 = new KeyAdapter(){
+		public void keyPressed(KeyEvent e) {
+			changed = true;
+			Save.setEnabled(true);
+			SaveAs.setEnabled(true);
+		}
+	};
+	
+	Action New = new AbstractAction("New"){
+		private static final long serialVersionUID = 1L;
+
+		public void actionPerformed(ActionEvent e){
+			savePrev();
+			editor.setText("");
+			currentFile = "New File";
+			mlogo.setTitle(mlogo.getVersion() + ", Editing: " + currentFile);
+			changed = false;
+		}
+	};
+	
+	Action Open = new AbstractAction("Open"){
+		private static final long serialVersionUID = 1L;
+		
+		public void actionPerformed(ActionEvent e) {
+			savePrev();
+			if(fileSelect.showOpenDialog(null) == JFileChooser.APPROVE_OPTION){
+				openFile(fileSelect.getSelectedFile().getAbsolutePath());
+			}
+			SaveAs.setEnabled(true);
+		}
+	};
+	
+	Action Save = new AbstractAction("Save"){
+		private static final long serialVersionUID = 1L;
+		
+		public void actionPerformed(ActionEvent e) {
+			if(!currentFile.equals("New File"))
+				saveFile(currentFile);
+			else
+				saveFileAs();
+		}
+	};
+	
+	Action SaveAs = new AbstractAction("Save As"){
+		private static final long serialVersionUID = 1L;
+		
+		public void actionPerformed(ActionEvent e) {
+			saveFileAs();
+		}
+	};
+	
+	Action Run = new AbstractAction("Run"){
+		private static final long serialVersionUID = 1L;
+		
+		public void actionPerformed(ActionEvent e) {
+			input = editor.getText();
+			mlogo.setInput(input);
+		}
+	};
+	
+	Action SaveRun = new AbstractAction("Save and Run"){
+		private static final long serialVersionUID = 1L;
+		
+		public void actionPerformed(ActionEvent e) {
+			if(!currentFile.equals("New File"))
+				saveFile(currentFile);
+			else
+				saveFileAs();
+			
+			input = editor.getText();
+			mlogo.setInput(input);
+		}
+	};
+	
+	ActionMap m = editor.getActionMap();
+	Action Cut = m.get(DefaultEditorKit.cutAction);
+	Action Copy = m.get(DefaultEditorKit.copyAction);
+	Action Paste = m.get(DefaultEditorKit.pasteAction);
+	
+	public String getInput(){
+		return this.input;
+	}
+	
+	public String getCurrentFile(){
+		return this.currentFile;
+	}
+	
+	public void openFile(String fileName){
+		try {
+			FileReader r = new FileReader(fileName);
+			editor.read(r,null);
+			r.close();
+			currentFile = fileName;
+			mlogo.setTitle(mlogo.getVersion() + ", Editing: " + this.currentFile);
+			changed = false;
+		}
+		catch(IOException e) {
+			Toolkit.getDefaultToolkit().beep();
+			JOptionPane.showMessageDialog(this, "File not found: " + fileName);
+		}
+	}
+	
+	private void savePrev(){
+		if(changed) {
+			if(JOptionPane.showConfirmDialog(this, "Would you like to save "+ currentFile +" ?", "Save", JOptionPane.YES_NO_OPTION) == JOptionPane.YES_OPTION)
+				saveFile(currentFile);
+		}
+	}
+	
+	public void saveFile(String fileName){
+		try {
+			FileWriter w = new FileWriter(fileName);
+			editor.write(w);
+			w.close();
+			currentFile = fileName;
+			changed = false;
+			mlogo.setTitle(mlogo.getVersion() + ", Editing: " + this.currentFile);
+			Save.setEnabled(false);
+		}
+		catch(IOException e){
+			e.printStackTrace();
+		}
+	}
+	
+	private void saveFileAs() {
+		if(fileSelect.showSaveDialog(null) == JFileChooser.APPROVE_OPTION)
+			saveFile(fileSelect.getSelectedFile().getAbsolutePath());
 	}
 }
