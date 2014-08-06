@@ -1,6 +1,0 @@
-to test :thing
-print sum :thing 5
-end
-
-test 6
-

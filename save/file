@@ -1,8 +1,0 @@
-to foo :x
-	repeat :x [
-	print :x
-	make 'x dif :x 1
-	]
-end
-
-foo 20

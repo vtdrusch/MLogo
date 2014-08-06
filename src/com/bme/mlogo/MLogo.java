@@ -43,7 +43,11 @@ public class MLogo implements ActionListener, KeyListener, ChangeListener {
 		try				   { base = new URL("file:///" + fileLoc + "/docs/"); }
 		catch(Exception ex){ ex.printStackTrace();							  }
 		
-		saveFile = new File("save/saveFile");		
+		saveFile = new File("save/saveFile");
+		File docs = new File("docs/");
+		File saves = new File("save/");
+		docs.mkdirs();
+		saves.mkdirs();
 		t = new TurtleGraphics(e, 375, 315);
 		repl(e, t);
 	}
