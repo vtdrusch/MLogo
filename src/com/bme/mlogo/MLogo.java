@@ -280,6 +280,7 @@ public class MLogo implements ActionListener, KeyListener, ChangeListener {
 
 	public void stateChanged(ChangeEvent e){ 
 		int index = this.tabbedPane1.getSelectedIndex();
+		Dimension dim = this.frame.getSize();
 		if(changeTab){
 			if(index == 1){ 
 				changeTab = false;
@@ -291,6 +292,7 @@ public class MLogo implements ActionListener, KeyListener, ChangeListener {
 				this.tabbedPane1.add(tab, 1);
 				this.tabbedPane1.setTitleAt(1, "Graphics");
 				this.tabbedPane1.setToolTipTextAt(1, "Large Turtle Graphics Display");
+				frame.setPreferredSize(dim);
 				frame.pack();
 
 				this.tabbedPane1.setSelectedIndex(1);
@@ -318,6 +320,7 @@ public class MLogo implements ActionListener, KeyListener, ChangeListener {
 				c.weightx = 0.0;
 				c.weighty = 0.0;
 				pane.add(turtlePane, c);
+				frame.setPreferredSize(dim);
 				frame.pack();
 			}
 		}
