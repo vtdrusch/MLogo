@@ -14,8 +14,8 @@ public class Primitives {
 
 	private Primitives() {}
 
-	private static final LWord A         = new LWord(LWord.Type.Name, "op1");
-	private static final LWord B         = new LWord(LWord.Type.Name, "op2");
+	private static final LWord A         = new LWord(LWord.Type.Name, "num1");
+	private static final LWord B         = new LWord(LWord.Type.Name, "num2");
 	private static final LWord RANGE     = new LWord(LWord.Type.Name, "range");
 	private static final LWord ATOM      = new LWord(LWord.Type.Name, "atom");
 	private static final LWord WORD      = new LWord(LWord.Type.Name, "word");

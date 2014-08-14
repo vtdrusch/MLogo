@@ -11,20 +11,24 @@ public class TurtleGraphics {
 
 	static int WIDTH;
 	static int HEIGHT;
-	private Image buffer;
+	private BufferedImage buffer;
+	private Image status;
 	private Turtle turtle;
 	private TurtlePanel turtlePanel;
-	private Graphics g; 
+	private Graphics g;
+	private Graphics sg;
 	private Environment e;
 
 	public TurtleGraphics(Environment e, int width, int height) {
 		TurtleGraphics.WIDTH = width;
 		TurtleGraphics.HEIGHT = height;
 		buffer = new BufferedImage(WIDTH, HEIGHT, BufferedImage.TYPE_INT_ARGB);
+		status = new BufferedImage(WIDTH, HEIGHT, BufferedImage.TYPE_INT_ARGB);
 		turtle = new Turtle();
-		turtlePanel = new TurtlePanel(turtle, buffer);
-		this.g = buffer.getGraphics();
-		this.e = e;
+		turtlePanel = new TurtlePanel(turtle, buffer, status);
+		g = buffer.createGraphics();
+		sg = status.getGraphics();
+		e = e;
 		primitiveTurtle(e);
 	}
 
@@ -34,60 +38,99 @@ public class TurtleGraphics {
 				g.setColor(Color.BLACK);
 				g.fillRect(0, 0, WIDTH, HEIGHT);
 			}
-			
+
 			turtle.window = this.turtlePanel;
 			turtle.window.setPreferredSize(new Dimension(WIDTH, HEIGHT));
 		}
 	}
-	
+
 	public void resize(int width, int height){
+		double x = turtle.x - TurtleGraphics.WIDTH / 2;
+		double y = turtle.y - TurtleGraphics.HEIGHT / 2;
+		int prevWidth = TurtleGraphics.WIDTH;
+		int prevHeight = TurtleGraphics.HEIGHT;
+		
+		if((isEven(prevWidth) && !isEven(width)) || (!isEven(prevWidth) && isEven(width))){
+			width += 1;
+		}
+		if((isEven(prevHeight) && !isEven(height)) || (isEven(prevHeight) && !isEven(height))){
+			height += 1;
+		}
+		
 		TurtleGraphics.WIDTH = width;
 		TurtleGraphics.HEIGHT = height;
-		//turtlePanel.resize();
-		buffer = new BufferedImage(WIDTH, HEIGHT, BufferedImage.TYPE_INT_ARGB);
-		turtle = new Turtle();
-		turtlePanel = new TurtlePanel(turtle, buffer);
+		
+		int offsetX = (WIDTH - prevWidth) / 2;
+		int offsetY = (HEIGHT - prevHeight) / 2;
+
+		BufferedImage img = buffer;
+		buffer = new BufferedImage(WIDTH, HEIGHT, BufferedImage.TYPE_INT_RGB);
+		Graphics2D g2d = buffer.createGraphics();
+		try{
+			g2d.setRenderingHint(RenderingHints.KEY_INTERPOLATION, RenderingHints.VALUE_INTERPOLATION_BICUBIC);
+			g2d.setBackground(Color.BLACK);
+			g2d.clearRect(0, 0, WIDTH, HEIGHT);
+			g2d.drawImage(img, offsetX, offsetY, prevWidth, prevHeight, null);
+		}
+		finally{
+			g2d.dispose();
+		}
+		turtlePanel = new TurtlePanel(turtle, buffer, status);
+		turtle.window = this.turtlePanel;
+
+		turtle.x = WIDTH / 2;
+		turtle.y = HEIGHT / 2;
+		turtle.x += x;
+		turtle.y += y;
+		
 		g = buffer.getGraphics();
+		turtlePanel.penStat(turtle.pendown, turtle.pencolor, turtle.heading, turtle.x, turtle.y);
+	}
+	
+	private boolean isEven(int num){
+		return ((num % 2) == 0);
 	}
 
 	protected JComponent getTurtle(){
 		if(turtle.window == null){ setup(); }
 		return turtle.window;
 	}
-	
+
 	public void primitiveTurtle(Environment e) {
-		final LWord a = new LWord(LWord.Type.Name, "arg1");
-		final LWord b = new LWord(LWord.Type.Name, "arg2");
-		final LWord c = new LWord(LWord.Type.Name, "arg3");
+		final LWord dist = new LWord(LWord.Type.Name, "distance");
+		final LWord deg = new LWord(LWord.Type.Name, "degrees");
+		final LWord r = new LWord(LWord.Type.Name, "red");
+		final LWord gr = new LWord(LWord.Type.Name, "green");
+		final LWord b = new LWord(LWord.Type.Name, "blue");
 
 		e.bind(new LWord(LWord.Type.Prim, "forward") {
 			public void eval(Environment e) {
 				setup();
-				turtle.goalDistance = -num(e, a);
+				turtle.goalDistance = -num(e, dist);
 				e.pause();
 			}
-		}, a);
+		}, dist);
 		e.bind(new LWord(LWord.Type.Prim, "back") {
 			public void eval(Environment e) {
 				setup();
-				turtle.goalDistance = num(e, a);
+				turtle.goalDistance = num(e, dist);
 				e.pause();
 			}
-		}, a);
+		}, dist);
 		e.bind(new LWord(LWord.Type.Prim, "left") {
 			public void eval(Environment e) {
 				setup();
-				turtle.goalDegrees = -num(e, a);
+				turtle.goalDegrees = -num(e, deg);
 				e.pause();
 			}
-		}, a);
+		}, deg);
 		e.bind(new LWord(LWord.Type.Prim, "right") {
 			public void eval(Environment e) {
 				setup();
-				turtle.goalDegrees = num(e, a);
+				turtle.goalDegrees = num(e, deg);
 				e.pause();
 			}
-		}, a);
+		}, deg);
 		e.bind(new LWord(LWord.Type.Prim, "clear") {
 			public void eval(Environment e) {
 				setup();
@@ -133,21 +176,21 @@ public class TurtleGraphics {
 			public void eval(Environment e) {
 				synchronized(buffer) {
 					turtle.pencolor = new Color(
-						num(e, a) & 0xFF,
-						num(e, b) & 0xFF,
-						num(e, c) & 0xFF
-					);
+							num(e, r) & 0xFF,
+							num(e, gr) & 0xFF,
+							num(e, b) & 0xFF
+							);
 					turtlePanel.penStat(turtle.pendown, turtle.pencolor, turtle.heading, turtle.x, turtle.y);
 				}
 				turtle.window.repaint();
 			}
-		}, a, b, c);
+		}, r, gr, b);
 	}
 
 	public boolean update() {
 		if (turtle.goalDegrees != 0) {
 			int rotated = (int)(Math.signum(turtle.goalDegrees) *
-				Math.min(30, Math.abs(turtle.goalDegrees)));
+					Math.min(30, Math.abs(turtle.goalDegrees)));
 			turtle.goalDegrees -= rotated;
 			turtle.degrees += rotated;
 			if(turtle.degrees >= 90){ turtle.heading = Math.abs((turtle.degrees - 90) % 360);	    }
@@ -159,7 +202,7 @@ public class TurtleGraphics {
 		}
 		if (turtle.goalDistance != 0) {
 			int traveled = (int)(Math.signum(turtle.goalDistance) *
-				Math.min(5, Math.abs(turtle.goalDistance)));
+					Math.min(5, Math.abs(turtle.goalDistance)));
 			turtle.goalDistance -= traveled;
 
 			synchronized(buffer) {
@@ -168,7 +211,7 @@ public class TurtleGraphics {
 				turtle.x += traveled * Math.cos(Math.toRadians(turtle.degrees));
 				turtle.y += traveled * Math.sin(Math.toRadians(turtle.degrees));
 				turtlePanel.penStat(turtle.pendown, turtle.pencolor, turtle.heading, turtle.x, turtle.y);
-				if (turtle.pendown) { 
+				if (turtle.pendown) {
 					g.setColor(turtle.pencolor);
 					g.drawLine(ox, oy, (int)turtle.x, (int)turtle.y);
 				}
@@ -185,7 +228,7 @@ class Turtle {
 
 	int goalDegrees;
 	int goalDistance;
-	
+
 	int degrees = 90;
 	int heading = 0;
 	double x = TurtleGraphics.WIDTH  / 2;
@@ -200,28 +243,24 @@ class TurtlePanel extends JPanel {
 
 	private final Turtle turtle;
 	private final Image  buffer;
+	private final Image  status;
 	private String penstat;
 	private String pencolor;
 	private String turtlepos;
 	private String turtlehdg;
-	
-	public TurtlePanel(Turtle turtle, Image buffer) {
+
+	public TurtlePanel(Turtle turtle, Image buffer, Image status) {
 		setPreferredSize(new Dimension(TurtleGraphics.WIDTH, TurtleGraphics.HEIGHT));
 		this.turtle = turtle;
+		this.status = status;
 		this.buffer = buffer;
 		this.penStat(turtle.pendown, turtle.pencolor, turtle.heading, turtle.x, turtle.y);
-	}
-	
-	//unfinished pending a rework of the resizing process for graphics panes, not used in this version of MLogo
-	public void resize(){
-		setPreferredSize(new Dimension(TurtleGraphics.WIDTH, TurtleGraphics.HEIGHT));
-		penStat(turtle.pendown, turtle.pencolor, turtle.degrees, turtle.x, turtle.y);
 	}
 	
 	public void penStat(boolean pendown, Color pencolor, int degrees, double x, double y){
 		if(pendown == true)    { this.penstat = "Pen: DOWN"; }
 		else 				   { this.penstat = "Pen: UP";   }
-		
+
 		x -= TurtleGraphics.WIDTH/2;
 		y -= TurtleGraphics.HEIGHT/2;
 		if(y != 0){ y = -y; }
@@ -245,7 +284,10 @@ class TurtlePanel extends JPanel {
 			g.drawLine( 0, -10,  8, 10);
 			g.drawLine( 0, -10, -8, 10);
 			g.drawLine(-8,  10,  8, 10);
-			
+		}
+		synchronized(status){
+			g.drawImage(status, 0, 0, this);
+
 			//draw status info
 			g.rotate(-Math.toRadians(turtle.degrees) + Math.PI/2);
 			g.drawString(penstat, (float)(5-turtle.x), (float)(10-turtle.y));

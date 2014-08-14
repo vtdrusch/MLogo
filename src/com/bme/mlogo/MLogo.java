@@ -1,3 +1,10 @@
+/**
+ * Javadoc Autogeneration
+ * @author Vincent
+ * 
+ * Description
+ * 
+ */
 package com.bme.mlogo;
 
 import com.bme.logo.*;
@@ -5,18 +12,18 @@ import java.io.*;
 import java.util.*;
 import java.awt.*;
 import java.net.*;
+import java.nio.file.*;
 import java.awt.image.*;
 import java.awt.event.*;
 import java.text.*;
 import javax.swing.*;
 import javax.swing.event.*;
 import javax.swing.text.*;
-import javax.swing.text.html.HTMLDocument;
-import javax.swing.text.html.HTMLEditorKit;
+import javax.swing.text.html.*;
 
 import static com.bme.logo.Primitives.*;
 
-public class MLogo implements ActionListener, KeyListener, ChangeListener {
+public class MLogo implements ActionListener, KeyListener, ChangeListener, ComponentListener {
 	static final String version = "Loko v0.5";
 	static final String fileLoc = System.getProperty("user.dir");
 	static URL base;
@@ -28,13 +35,14 @@ public class MLogo implements ActionListener, KeyListener, ChangeListener {
 	private JPanel pane;
 	private TurtleGraphics t;
 	private JTabbedPane tabbedPane1;
+	private JPanel container;
+	private JSplitPane splitPane;
 	private JTextField listener;
 	private JTextPane terminal;
 	private JTextPane help;
 	private TextEditor editor;
 	private JComponent turtlePane;
 	private Environment e;
-	private boolean changeTab = true;
 	private int currentTab = 0;
 
 	public MLogo(boolean interactive, boolean turtles, boolean trace){
@@ -42,12 +50,27 @@ public class MLogo implements ActionListener, KeyListener, ChangeListener {
 		primitiveIO(e, trace);
 		try				   { base = new URL("file:///" + fileLoc + "/docs/"); }
 		catch(Exception ex){ ex.printStackTrace();							  }
-		
+
 		saveFile = new File("save/saveFile");
-		File docs = new File("docs/");
-		File saves = new File("save/");
-		docs.mkdirs();
-		saves.mkdirs();
+		saveFile.getParentFile().mkdirs();
+		try{
+			if(!saveFile.exists()){
+				PrintWriter writer = new PrintWriter(saveFile);
+				writer.print("");
+			}
+		}
+		catch(IOException ex){
+			ex.printStackTrace();
+		}
+
+		java.util.List<LWord> words = new ArrayList<LWord>(e.words());
+		Collections.sort(words);
+		for(LWord word : words) {
+			generateDoc(word, false);
+		}
+
+		this.describe(e);
+
 		t = new TurtleGraphics(e, 375, 315);
 		repl(e, t);
 	}
@@ -58,6 +81,22 @@ public class MLogo implements ActionListener, KeyListener, ChangeListener {
 		boolean trace       = false;
 
 		new MLogo(interactive, turtles, trace);
+	}
+
+	public String getVersion(){
+		return MLogo.version;
+	}
+
+	public TurtleGraphics getTurtle(){
+		return this.t;
+	}
+
+	public void setInput(String in){
+		this.input = in;
+	}
+
+	public void setTitle(String title){
+		this.frame.setTitle(title);
 	}
 
 	private void repl(Environment env, TurtleGraphics t) {
@@ -120,7 +159,7 @@ public class MLogo implements ActionListener, KeyListener, ChangeListener {
 		//set up first tabbed pane (terminal, large turtle graphics window)
 		this.tabbedPane1 = new JTabbedPane();
 		tabbedPane1.addChangeListener(this);
-		
+
 		this.editor = new TextEditor(this);
 		JComponent tab0 = this.editor;
 
@@ -130,8 +169,9 @@ public class MLogo implements ActionListener, KeyListener, ChangeListener {
 		this.tabbedPane1.setToolTipTextAt(0, "Program Editor Window");
 
 		//add large graphics tab to first tab pane
-		JComponent tab1 = new JPanel();
-		this.tabbedPane1.add(tab1, 1);
+		this.container = new JPanel();
+		//this.container.setLayout(new GridBagLayout());
+		this.tabbedPane1.add(container, 1);
 		this.tabbedPane1.setTitleAt(1, "Graphics");
 		this.tabbedPane1.setToolTipTextAt(1, "Large Turtle Graphics Display");
 
@@ -155,12 +195,9 @@ public class MLogo implements ActionListener, KeyListener, ChangeListener {
 		JScrollPane termScroll = new JScrollPane(this.terminal);
 
 		//add scrolling terminal pane and first tab pane to split pane
-		JSplitPane splitPane = new JSplitPane(JSplitPane.VERTICAL_SPLIT, tabbedPane1, termScroll);
+		this.splitPane = new JSplitPane(JSplitPane.VERTICAL_SPLIT, tabbedPane1, termScroll);
 		splitPane.setOneTouchExpandable(true);
 		splitPane.setDividerLocation(400);
-		//this code sets the split pane to show only the terminal window by default
-		//splitPane.getTopComponent().setMinimumSize(new Dimension());
-		//splitPane.setDividerLocation(0);
 
 		//set up second tabbed pane (tutor, modules, libraries)
 		JTabbedPane tabbedPane2 = new JTabbedPane();
@@ -180,7 +217,6 @@ public class MLogo implements ActionListener, KeyListener, ChangeListener {
 				}
 			}
 		});
-
 
 		JComponent tab3 = new JScrollPane(this.help);
 		tabbedPane2.addTab("Teacher", null, tab3, "Teaching module and help menu");
@@ -244,6 +280,8 @@ public class MLogo implements ActionListener, KeyListener, ChangeListener {
 		frame.add(pane);
 		frame.pack();
 		frame.setVisible(true);
+
+		frame.addComponentListener(this);
 	}
 
 	protected static JComponent makeTextPanel(String text) {
@@ -255,6 +293,7 @@ public class MLogo implements ActionListener, KeyListener, ChangeListener {
 		return panel;
 	}
 
+	//ActionEvent method
 	public void actionPerformed(ActionEvent evt) {
 		this.input += listener.getText();
 		this.output = listener.getText();
@@ -269,6 +308,7 @@ public class MLogo implements ActionListener, KeyListener, ChangeListener {
 		listener.setText("");
 	}
 
+	//KeyEvent methods
 	public void keyPressed(KeyEvent e){ 
 		Integer keyCode = e.getKeyCode();
 		if(keyCode == 38){ listener.setText(output); }
@@ -278,54 +318,21 @@ public class MLogo implements ActionListener, KeyListener, ChangeListener {
 
 	public void keyTyped(KeyEvent e){ }
 
+	//ChangeListener method
 	public void stateChanged(ChangeEvent e){ 
-		int index = this.tabbedPane1.getSelectedIndex();
-		Dimension dim = this.frame.getSize();
-		if(changeTab){
-			if(index == 1){ 
-				changeTab = false;
-				this.pane.remove(turtlePane);
-				this.tabbedPane1.remove(1);
-				this.t.resize(this.tabbedPane1.getWidth(), this.tabbedPane1.getHeight());
-				this.turtlePane = t.getTurtle();
-				JComponent tab = this.turtlePane;
-				this.tabbedPane1.add(tab, 1);
-				this.tabbedPane1.setTitleAt(1, "Graphics");
-				this.tabbedPane1.setToolTipTextAt(1, "Large Turtle Graphics Display");
-				frame.setPreferredSize(dim);
-				frame.pack();
-
-				this.tabbedPane1.setSelectedIndex(1);
-				this.changeTab = true;
-			}
-			else if(currentTab == 1){
-				if(this.tabbedPane1.getTabCount() > 1){
-					changeTab = false;
-					this.tabbedPane1.remove(1);
-					JComponent tab = new JPanel();
-					this.tabbedPane1.add(tab, 1);
-					this.tabbedPane1.setTitleAt(1, "Graphics");
-					this.tabbedPane1.setToolTipTextAt(1, "Large Turtle Graphics Display");
-					changeTab = true;
-				}
-				this.t.resize(375, 315);
-				this.turtlePane = t.getTurtle();
-				GridBagConstraints c = new GridBagConstraints();
-				c.fill = GridBagConstraints.BOTH;
-				c.ipadx = 300;
-				c.ipady = 300;
-				c.gridx = 1;
-				c.gridy = 0;
-				c.gridheight = 1;
-				c.weightx = 0.0;
-				c.weighty = 0.0;
-				pane.add(turtlePane, c);
-				frame.setPreferredSize(dim);
-				frame.pack();
-			}
-		}
-		this.currentTab = index;
+		this.changeState();
 	}
+
+	//ComponentListener methods
+	public void componentResized(ComponentEvent e){	
+		this.changeState();
+	}
+
+	public void componentHidden(ComponentEvent e){ }
+
+	public void componentShown(ComponentEvent e){ }
+
+	public void componentMoved(ComponentEvent e){ }
 
 	public static void insertText(String s, JTextPane pane){
 		HTMLDocument doc = (HTMLDocument)pane.getDocument();
@@ -360,6 +367,51 @@ public class MLogo implements ActionListener, KeyListener, ChangeListener {
 			this.lineCount = 0;
 			env.reset();
 		}
+	}
+
+	private void changeState(){
+		int index = this.tabbedPane1.getSelectedIndex();
+		GridBagConstraints c = new GridBagConstraints();
+		Dimension dim = this.frame.getSize();
+
+		if(index == 1){
+			this.splitPane.setOneTouchExpandable(false);
+			this.splitPane.setEnabled(false);
+			this.splitPane.setDividerLocation(0.75);
+
+			int width = this.tabbedPane1.getWidth();
+			int height = this.splitPane.getDividerLocation();
+			this.container.remove(this.turtlePane);
+			this.pane.remove(this.turtlePane);
+			this.t.resize(width, height);
+			this.turtlePane = this.t.getTurtle();
+			this.container.add(this.turtlePane);
+			this.frame.setPreferredSize(dim);
+			this.frame.pack();
+		}
+		else if(currentTab == 1){
+			this.container.remove(this.turtlePane);
+
+			this.splitPane.setOneTouchExpandable(true);
+			this.splitPane.setEnabled(true);
+			this.splitPane.setDividerLocation(0.5);
+
+			this.t.resize(375, 315);
+			this.turtlePane = t.getTurtle();
+			c.anchor = GridBagConstraints.CENTER;
+			c.fill = GridBagConstraints.BOTH;
+			c.ipadx = 300;
+			c.ipady = 300;
+			c.gridx = 1;
+			c.gridy = 0;
+			c.gridheight = 1;
+			c.weightx = 0.0;
+			c.weighty = 0.0;
+			this.pane.add(this.turtlePane, c);
+			this.frame.setPreferredSize(dim);
+			this.frame.pack();
+		}
+		this.currentTab = index;
 	}
 
 	private String loadFile(String filename) {
@@ -432,21 +484,157 @@ public class MLogo implements ActionListener, KeyListener, ChangeListener {
 			insertText("Unable to save to saveFile", help);
 		}
 	}
-	
-	public String getVersion(){
-		return MLogo.version;
+
+	public void generateDoc(LWord word, boolean regen){
+		if(e.thing(word) instanceof LList){
+			String filename;
+			String args = " ";
+
+			LList list = Primitives.list(e, word);
+			if(list.arguments != null){ args += list.arguments.toString(); }
+			else					  { args += "[]";					   }
+
+			if(word.value.contains("?")){
+				StringBuilder wordName = new StringBuilder(word.value);
+				wordName.deleteCharAt(wordName.length()-1);
+				filename = fileLoc + "/docs/is" + wordName.toString() + ".html";
+			}
+			else{
+				filename = fileLoc + "/docs/" + word.value + ".html";
+			}
+
+			File doc = new File(filename);
+			if(regen){
+				try{
+					Files.deleteIfExists(doc.toPath());
+				}
+				catch(Exception ex){
+					insertText("Could not delete existing document for word: " + word.value + ".", help);
+				}
+			}
+
+			doc.getParentFile().mkdirs();
+			if(!doc.exists()){
+				try{
+					PrintWriter writer = new PrintWriter(doc);
+					String desc = ((LList)e.thing(word)).description;
+					if("".equals(desc)){ desc = "Description not found, please add a brief description of this word using the " +
+							"<a href=\"describe.html\">describe</a> command."; }
+					writer.println("<html lang=\"en\">\n" +
+							"<head>\n" +
+							"<title>" + word.value + "</title>\n" +
+							"</head>\n" +
+							"<body>\n" +
+							"<h1>" + word.value + args + "</h1>\n" +
+							"<hr>\n" +
+							"<br>\n" +
+							desc + "\n" +
+							"</body>\n" +
+							"</html>");
+					writer.close();
+
+				}
+				catch(IOException e){
+					insertText("Document generation failed for word: " + word.value + ".", help);
+					e.printStackTrace();
+				}
+			}
+		}
 	}
 
-	public void setInput(String in){
-		this.input = in;
-	}
-	
-	public void setTitle(String title){
-		this.frame.setTitle(title);
+	private void describe(Environment e){
+		HashMap<String, String> map = new HashMap<String, String>();
+		map.put("args", "Takes a list input and returns the arguments associated with that list.");
+		map.put("ascall", "Converts the input word to a call.");
+		map.put("asname", "Covnerts the input word to a name.");
+		map.put("asvalue", "Converts the input word to a value.");
+		map.put("back", "Moves the turtle back by the number of units specified by the input.");
+		map.put("bind", "Associates a list of arguments with another list. For example:<br><br>" +
+				"bind ['x][print :x]<br><br>" +
+				"returns the [print :x] list with the argument x bound to it. When used with the <a href=\"local.html\">local</a> command, " +
+				"bind can be used to create lists with arguments and associate these lists with words so that they can be run later.");
+		map.put("butfirst", "Description to be added later.");
+		map.put("butlast", "Description to be added later.");
+		map.put("clear", "Description to be added later.");
+		map.put("clrhelp", "Description to be added later.");
+
+		map.put("clrwindow", "Description to be added later.");
+		map.put("describe", "Description to be added later.");
+		map.put("dif", "Description to be added later.");
+		map.put("edit", "Description to be added later.");
+		map.put("equal", "Description to be added later.");
+		map.put("erase", "Description to be added later.");
+		map.put("first", "Description to be added later.");
+		map.put("flatten", "Description to be added later.");
+		map.put("forward", "Description to be added later.");
+		map.put("fput", "Description to be added later.");
+
+		map.put("genDocs", "Description to be added later.");
+		map.put("getDesc", "Description to be added later.");
+		map.put("isGreater", "Description to be added later.");
+		map.put("help", "Description to be added later.");
+		map.put("home", "Description to be added later.");
+		map.put("desc?", "Description to be added later.");
+		map.put("item", "Description to be added later.");
+		map.put("join", "Description to be added later.");
+		map.put("last", "Description to be added later.");
+		map.put("left", "Description to be added later.");
+
+		map.put("less?", "Description to be added later.");
+		map.put("list?", "Description to be added later.");
+		map.put("load", "Description to be added later.");
+		map.put("local", "Description to be added later.");
+		map.put("lput", "Description to be added later.");
+		map.put("make", "Description to be added later.");
+		map.put("member", "Description to be added later.");
+		map.put("negate", "Description to be added later.");
+		map.put("num?", "Description to be added later.");
+		map.put("output", "Description to be added later.");
+
+		map.put("pendown", "Description to be added later.");
+		map.put("penup", "Description to be added later.");
+		map.put("print", "Description to be added later.");
+		map.put("println", "Description to be added later.");
+		map.put("product", "Description to be added later.");
+		map.put("quotient", "Description to be added later.");
+		map.put("random", "Description to be added later.");
+		map.put("readlist", "Description to be added later.");
+		map.put("regenDocs", "Description to be added later.");
+		map.put("remainder", "Description to be added later.");
+
+		map.put("repeat", "Description to be added later.");
+		map.put("right", "Description to be added later.");
+		map.put("run", "Description to be added later.");
+		map.put("save", "Description to be added later.");
+		map.put("saveFile", "Description to be added later.");
+		map.put("setcolor", "Description to be added later.");
+		map.put("size", "Description to be added later.");
+		map.put("stop", "Description to be added later.");
+		map.put("sum", "Description to be added later.");
+		map.put("thing", "Description to be added later.");
+
+		map.put("trace", "Description to be added later.");
+		map.put("unless", "Description to be added later.");
+		map.put("version", "Description to be added later.");
+		map.put("word?", "Description to be added later.");
+		map.put("words", "Description to be added later.");
+
+		java.util.List<LWord> words = new ArrayList<LWord>(e.words());
+		Collections.sort(words);
+		for(LWord word : words) {
+			if(e.thing(word) instanceof LList){
+				String value = ((LList)e.thing(word)).toString();
+				if(value.contains("@")){
+					((LList)e.thing(word)).description = map.get(word.toString());
+				}
+			}
+		}
 	}
 
 	private void primitiveIO(Environment e, boolean trace) {
-		final LWord a = new LWord(LWord.Type.Name, "argument1");
+		final LWord a = new LWord(LWord.Type.Name, "word");
+		final LWord b = new LWord(LWord.Type.Name, "filename");
+		final LWord c = new LWord(LWord.Type.Name, "description");
 		final Scanner in = new Scanner(System.in);
 
 		if (trace) {
@@ -489,11 +677,12 @@ public class MLogo implements ActionListener, KeyListener, ChangeListener {
 				Collections.sort(words);
 				Integer count = 1;
 				for(LWord word : words) {
-					String type = "";
-					if(e.thing(word) instanceof LList){ type = " list"; }
-					if(e.thing(word) instanceof LWord){ type = " word"; }
-					if(e.thing(word) instanceof LNumber){ type = " number"; }
-					insertText(count.toString() + " " + word.toString() + type, help); 
+					String type;
+					if(word.type == LWord.Type.Call){ type = "call"; }
+					else if(word.type == LWord.Type.Value){ type = "value"; }
+					else if(word.type == LWord.Type.Name){ type = "name"; }
+					else { type = "Prim"; }
+					insertText(count.toString() + " " + word.toString() + " " + type, help); 
 					count += 1; 
 				}
 			}
@@ -544,15 +733,24 @@ public class MLogo implements ActionListener, KeyListener, ChangeListener {
 				Collections.sort(words);
 				for(LWord word : words) {
 					String args = " ";
+					String filename = word.value;
+
+					if(word.value.contains("?")){
+						StringBuilder wordName = new StringBuilder(word.value);
+						wordName.deleteCharAt(wordName.length()-1);
+						filename = "is" + wordName.toString();
+					}
+
+					if(e.thing(word) instanceof LNumber){
+						args += ((Integer)((LNumber)e.thing(word)).value).toString();
+					}
 					if(e.thing(word) instanceof LList){
 						LList list = Primitives.list(e, word);
 						if(list.arguments != null){ args += list.arguments.toString(); }
 						else					  { args += "[]";					   }
 					}
-					if(e.thing(word) instanceof LNumber){
-						args += ((Integer)((LNumber)e.thing(word)).value).toString();
-					}
-					insertText("<a href=\"" + word + ".html\">" + word.toString() + "</a>" + args, help);
+					insertText("<a href=\"" + filename + ".html\">" + word.toString() + "</a>" + args, help);
+					generateDoc(word, true);
 				}
 			}
 		});
@@ -570,22 +768,17 @@ public class MLogo implements ActionListener, KeyListener, ChangeListener {
 		});
 		e.bind(new LWord(LWord.Type.Prim, "load") {
 			public void eval(Environment e) {
-				LAtom o = e.thing(a);
+				LAtom o = e.thing(b);
 				String arg = o.toString();
 				char[] chars = arg.toCharArray();
 				StringBuilder filename = new StringBuilder();
 				for(int i = 1; i < chars.length - 1; i += 1){ filename.append(chars[i]); }
 				setInput(loadFile(filename.toString()));
 			}
-		}, a);
+		}, b);
 		e.bind(new LWord(LWord.Type.Prim, "save") {
 			public void eval(Environment e) {
-				saveEnv(e);
-			}
-		});
-		e.bind(new LWord(LWord.Type.Prim, "saveFile") {
-			public void eval(Environment e) {
-				LAtom o = e.thing(a);
+				LAtom o = e.thing(b);
 				String arg = o.toString();
 				char[] chars = arg.toCharArray();
 				StringBuilder filename = new StringBuilder();
@@ -593,10 +786,15 @@ public class MLogo implements ActionListener, KeyListener, ChangeListener {
 				String file = ("save/" + filename.toString());
 				editor.saveFile(file);
 			}
-		}, a);
+		}, b);
+		e.bind(new LWord(LWord.Type.Prim, "saveEnv") {
+			public void eval(Environment e) {
+				saveEnv(e);
+			}
+		});
 		e.bind(new LWord(LWord.Type.Prim, "edit") {
 			public void eval(Environment e) {
-				LAtom o = e.thing(a);
+				LAtom o = e.thing(b);
 				String arg = o.toString();
 				char[] chars = arg.toCharArray();
 				StringBuilder filename = new StringBuilder();
@@ -604,7 +802,63 @@ public class MLogo implements ActionListener, KeyListener, ChangeListener {
 				String file = ("save/" + filename.toString());
 				editor.openFile(file);
 			}
+		}, b);
+		e.bind(new LWord(LWord.Type.Prim, "describe") {
+			public void eval(Environment e) {
+				if(!e.thing(a).toString().contains("@")){
+					if(e.thing(a) instanceof LList){
+						LAtom o = e.thing(c);
+						String arg = o.toString();
+						char[] chars = arg.toCharArray();
+						StringBuilder desc = new StringBuilder();
+						for(int i = 1; i < chars.length - 1; i += 1){ desc.append(chars[i]); }
+						((LList)e.thing(a)).description = desc.toString(); 
+					}
+					else{
+						insertText("Cannot describe non-list word.", help);
+					}
+				}
+				else{
+					insertText("Cannot redefine primitive word.", help);
+				}
+			}
+		}, a, c);
+		e.bind(new LWord(LWord.Type.Prim, "getDesc") {
+			public void eval(Environment e) {
+				if(a.type != LWord.Type.Call){
+					LAtom o = e.thing(a);
+					String desc = ((LList)o).description;
+					if("".equals(desc)){ desc = "Description not found, please add a brief description of this word using the " +
+							"<a href=\"describe.html\">describe</a> command."; }
+					String in = input.split(":")[1];
+					String output = in + " - " + desc;
+					insertText(output, help);
+				}
+				else{
+					insertText("Cannot describe non-list word.", help);
+				}
+			}
 		}, a);
+		e.bind(new LWord(LWord.Type.Prim, "genDocs") {
+			public void eval(Environment e) {
+				java.util.List<LWord> words = new ArrayList<LWord>(e.words());
+				Collections.sort(words);
+				for(LWord word : words) {
+					generateDoc(word, false);
+				}
+				insertText("Documents generated in docs folder.", help);
+			}
+		});
+		e.bind(new LWord(LWord.Type.Prim, "regenDocs") {
+			public void eval(Environment e) {
+				java.util.List<LWord> words = new ArrayList<LWord>(e.words());
+				Collections.sort(words);
+				for(LWord word : words) {
+					generateDoc(word, true);
+				}
+				insertText("New documents generated in docs folder.", help);
+			}
+		});
 	}
 }
 
@@ -621,41 +875,41 @@ class TextEditor extends JPanel {
 		this.mlogo = m;
 		this.editor.setTabSize(4);
 		this.setLayout(new BorderLayout());
-		
+
 		JScrollPane scroll = new JScrollPane(editor);
-		
+
 		JToolBar toolBar = new JToolBar();
 		toolBar.add(New);
 		toolBar.add(Open);
 		toolBar.add(Save);
 		toolBar.add(SaveAs);
-		
+
 		toolBar.addSeparator();
-		
+
 		JButton cut = toolBar.add(Cut); 
 		JButton	copy = toolBar.add(Copy); 
 		JButton	paste = toolBar.add(Paste);
-		
+
 		toolBar.addSeparator();
-		
+
 		toolBar.add(Run); 
 		toolBar.add(SaveRun);
-				
+
 		cut.setText("Cut");
 		copy.setText("Copy");
 		paste.setText("Paste");
-		
+
 		Save.setEnabled(false);
 		SaveAs.setEnabled(false);
-		
+
 		editor.addKeyListener(k1);
-		
+
 		this.add(scroll, BorderLayout.CENTER);
 		this.add(toolBar, BorderLayout.NORTH);
-		
+
 		mlogo.setTitle(mlogo.getVersion() + ", Editing: " + this.currentFile);
 	}
-	
+
 	private KeyListener k1 = new KeyAdapter(){
 		public void keyPressed(KeyEvent e) {
 			changed = true;
@@ -663,7 +917,7 @@ class TextEditor extends JPanel {
 			SaveAs.setEnabled(true);
 		}
 	};
-	
+
 	Action New = new AbstractAction("New"){
 		private static final long serialVersionUID = 1L;
 
@@ -675,10 +929,10 @@ class TextEditor extends JPanel {
 			changed = false;
 		}
 	};
-	
+
 	Action Open = new AbstractAction("Open"){
 		private static final long serialVersionUID = 1L;
-		
+
 		public void actionPerformed(ActionEvent e) {
 			savePrev();
 			if(fileSelect.showOpenDialog(null) == JFileChooser.APPROVE_OPTION){
@@ -687,10 +941,10 @@ class TextEditor extends JPanel {
 			SaveAs.setEnabled(true);
 		}
 	};
-	
+
 	Action Save = new AbstractAction("Save"){
 		private static final long serialVersionUID = 1L;
-		
+
 		public void actionPerformed(ActionEvent e) {
 			if(!currentFile.equals("New File"))
 				saveFile(currentFile);
@@ -698,51 +952,51 @@ class TextEditor extends JPanel {
 				saveFileAs();
 		}
 	};
-	
+
 	Action SaveAs = new AbstractAction("Save As"){
 		private static final long serialVersionUID = 1L;
-		
+
 		public void actionPerformed(ActionEvent e) {
 			saveFileAs();
 		}
 	};
-	
+
 	Action Run = new AbstractAction("Run"){
 		private static final long serialVersionUID = 1L;
-		
+
 		public void actionPerformed(ActionEvent e) {
 			input = editor.getText();
 			mlogo.setInput(input);
 		}
 	};
-	
+
 	Action SaveRun = new AbstractAction("Save and Run"){
 		private static final long serialVersionUID = 1L;
-		
+
 		public void actionPerformed(ActionEvent e) {
 			if(!currentFile.equals("New File"))
 				saveFile(currentFile);
 			else
 				saveFileAs();
-			
+
 			input = editor.getText();
 			mlogo.setInput(input);
 		}
 	};
-	
+
 	ActionMap m = editor.getActionMap();
 	Action Cut = m.get(DefaultEditorKit.cutAction);
 	Action Copy = m.get(DefaultEditorKit.copyAction);
 	Action Paste = m.get(DefaultEditorKit.pasteAction);
-	
+
 	public String getInput(){
 		return this.input;
 	}
-	
+
 	public String getCurrentFile(){
 		return this.currentFile;
 	}
-	
+
 	public void openFile(String fileName){
 		try {
 			FileReader r = new FileReader(fileName);
@@ -757,19 +1011,19 @@ class TextEditor extends JPanel {
 			JOptionPane.showMessageDialog(this, "File not found: " + fileName);
 		}
 	}
-	
+
 	private void savePrev(){
 		if(changed) {
 			if(JOptionPane.showConfirmDialog(this, "Would you like to save "+ currentFile +" ?", "Save", JOptionPane.YES_NO_OPTION) == JOptionPane.YES_OPTION)
 				saveFile(currentFile);
 		}
 	}
-	
+
 	public void saveFile(String fileName){
 		try {
-			FileWriter w = new FileWriter(fileName);
-			editor.write(w);
-			w.close();
+			FileWriter writer = new FileWriter(fileName);
+			editor.write(writer);
+			writer.close();
 			currentFile = fileName;
 			changed = false;
 			mlogo.setTitle(mlogo.getVersion() + ", Editing: " + this.currentFile);
@@ -779,7 +1033,7 @@ class TextEditor extends JPanel {
 			e.printStackTrace();
 		}
 	}
-	
+
 	private void saveFileAs() {
 		if(fileSelect.showSaveDialog(null) == JFileChooser.APPROVE_OPTION)
 			saveFile(fileSelect.getSelectedFile().getAbsolutePath());
