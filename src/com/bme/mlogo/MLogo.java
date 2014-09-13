@@ -24,34 +24,42 @@ import javax.swing.text.html.*;
 import static com.bme.logo.Primitives.*;
 
 public class MLogo implements ActionListener, KeyListener, ChangeListener, ComponentListener {
-	static final String version = "Loko v0.5";
+	static final String version = "Loko v1.0";
 	static final String fileLoc = System.getProperty("user.dir");
-	static URL base;
+	static URL docs;
+	static URL mods;
 	private File saveFile;
+	private File[] moduleFiles;
 	private String input = "";
 	private String output = "";
 	private int lineCount = 0;
 	private JFrame frame;
-	private JPanel pane;
 	private TurtleGraphics t;
 	private JTabbedPane tabbedPane1;
-	private JPanel container;
+	private JTabbedPane tabbedPane2;
+	private JPanel tContainer;
 	private JSplitPane splitPane;
 	private JTextField listener;
 	private JTextPane terminal;
 	private JTextPane help;
+	private JTextPane modules;
 	private TextEditor editor;
 	private JComponent turtlePane;
 	private Environment e;
 	private int currentTab = 0;
 
-	public MLogo(boolean interactive, boolean turtles, boolean trace){
-		this.e = kernel();
-		primitiveIO(e, trace);
-		try				   { base = new URL("file:///" + fileLoc + "/docs/"); }
+	public MLogo(){
+		e = kernel();
+		primitiveIO(e);
+		describe(e);
+
+		try				   { docs = new URL("file:///" + fileLoc + "/docs/"); }
 		catch(Exception ex){ ex.printStackTrace();							  }
 
-		saveFile = new File("save/saveFile");
+		try				   { mods = new URL("file:///" + fileLoc + "/modules/"); }
+		catch(Exception ex){ ex.printStackTrace();									}
+
+		saveFile = new File("save/env_save");
 		saveFile.getParentFile().mkdirs();
 		try{
 			if(!saveFile.exists()){
@@ -69,18 +77,16 @@ public class MLogo implements ActionListener, KeyListener, ChangeListener, Compo
 			generateDoc(word, false);
 		}
 
-		this.describe(e);
+		File modDirectory = new File(fileLoc + "/modules/");
+		modDirectory.mkdirs();
+		moduleFiles = new File[0];
 
-		t = new TurtleGraphics(e, 375, 315);
+		t = new TurtleGraphics(e, 380, 320);
 		repl(e, t);
 	}
 
 	public static void main(String[] a) {
-		boolean interactive = true;
-		boolean turtles     = false;
-		boolean trace       = false;
-
-		new MLogo(interactive, turtles, trace);
+		new MLogo();
 	}
 
 	public String getVersion(){
@@ -110,14 +116,33 @@ public class MLogo implements ActionListener, KeyListener, ChangeListener, Compo
 
 		while(true) {
 			boolean newInput = true;
+			int count = 0;
 			try {
 				while("".equals(input)){ 
-					try{ Thread.sleep(10); }
-					catch(InterruptedException e){} 
+					try{
+						Thread.sleep(10);
+						count += 1;
+						if(count == 50){
+							count = 0;
+							if(tabbedPane2.getSelectedIndex() == 1){
+								updateModules();
+							}
+						}
+					}
+					catch(InterruptedException e){ }
 				}
 				while(Parser.complete(input).size() > 0) {
-					try{ Thread.sleep(10); }
-					catch(InterruptedException e){}
+					try{
+						Thread.sleep(10);
+						count += 1;
+						if(count == 50){
+							count = 0;
+							if(tabbedPane2.getSelectedIndex() == 1){
+								updateModules();
+							}
+						}
+					}
+					catch(InterruptedException e){ }
 				}
 				if ("exit".equals(input)) { this.saveEnv(env); break; }
 				if (input.contains("load ")){ newInput = false; }
@@ -145,33 +170,27 @@ public class MLogo implements ActionListener, KeyListener, ChangeListener, Compo
 	private void initGUI(TurtleGraphics t){
 		//initialize the gui frame
 		this.frame = new JFrame(version);
-		frame.setDefaultCloseOperation(JFrame.EXIT_ON_CLOSE);
-		frame.setPreferredSize(new Dimension(1024, 768));
-
-		//initialize the top level panel for element display
-		this.pane = new JPanel();
-		pane.setLayout(new GridBagLayout());
+		this.frame.setDefaultCloseOperation(JFrame.EXIT_ON_CLOSE);
+		this.frame.setPreferredSize(new Dimension(1024, 768));
+		this.frame.setLayout(new GridBagLayout());
 		GridBagConstraints c = new GridBagConstraints();
 
-		//create small turtle graphics display
+		//create small graphics display
 		this.turtlePane = t.getTurtle();
 
 		//set up first tabbed pane (terminal, large turtle graphics window)
 		this.tabbedPane1 = new JTabbedPane();
 		tabbedPane1.addChangeListener(this);
 
+		//create and add text editor to tab
 		this.editor = new TextEditor(this);
-		JComponent tab0 = this.editor;
-
-		//add editor tab to first tab pane
-		this.tabbedPane1.add(tab0, 0);
+		this.tabbedPane1.add(this.editor, 0);
 		this.tabbedPane1.setTitleAt(0, "Editor");
 		this.tabbedPane1.setToolTipTextAt(0, "Program Editor Window");
 
-		//add large graphics tab to first tab pane
-		this.container = new JPanel();
-		//this.container.setLayout(new GridBagLayout());
-		this.tabbedPane1.add(container, 1);
+		//create and add container pane for the large graphics display to tab
+		this.tContainer = new JPanel();
+		this.tabbedPane1.add(this.tContainer, 1);
 		this.tabbedPane1.setTitleAt(1, "Graphics");
 		this.tabbedPane1.setToolTipTextAt(1, "Large Turtle Graphics Display");
 
@@ -179,7 +198,7 @@ public class MLogo implements ActionListener, KeyListener, ChangeListener, Compo
 		this.terminal = new JTextPane();
 		this.terminal.setEditable(false);
 		this.terminal.setContentType("text/html");
-		((HTMLDocument)this.terminal.getDocument()).setBase(base);
+		((HTMLDocument)this.terminal.getDocument()).setBase(docs);
 		this.terminal.addHyperlinkListener(new HyperlinkListener(){
 			public void hyperlinkUpdate(HyperlinkEvent e) {
 				if(e.getEventType() == HyperlinkEvent.EventType.ACTIVATED) {
@@ -200,13 +219,14 @@ public class MLogo implements ActionListener, KeyListener, ChangeListener, Compo
 		splitPane.setDividerLocation(400);
 
 		//set up second tabbed pane (tutor, modules, libraries)
-		JTabbedPane tabbedPane2 = new JTabbedPane();
+		this.tabbedPane2 = new JTabbedPane();
 
+		//create help window
 		this.help = new JTextPane();
-		this.help.setEditable(false);
-		this.help.setContentType("text/html");
-		((HTMLDocument)this.help.getDocument()).setBase(base);
-		this.help.addHyperlinkListener(new HyperlinkListener(){
+		help.setEditable(false);
+		help.setContentType("text/html");
+		((HTMLDocument)help.getDocument()).setBase(docs);
+		help.addHyperlinkListener(new HyperlinkListener(){
 			public void hyperlinkUpdate(HyperlinkEvent e) {
 				if(e.getEventType() == HyperlinkEvent.EventType.ACTIVATED) {
 					if(Desktop.isDesktopSupported()) {
@@ -218,17 +238,39 @@ public class MLogo implements ActionListener, KeyListener, ChangeListener, Compo
 			}
 		});
 
-		JComponent tab3 = new JScrollPane(this.help);
-		tabbedPane2.addTab("Teacher", null, tab3, "Teaching module and help menu");
+		JComponent tab1 = new JScrollPane(this.help);
+		this.tabbedPane2.add(tab1, 0);
+		this.tabbedPane2.setTitleAt(0, "Teacher");
+		this.tabbedPane2.setToolTipTextAt(0, "Digital tutor and help menu");
 
-		JComponent tab4 = makeTextPanel("Panel 2");
-		tabbedPane2.addTab("Modules", null, tab4, "Learning modules");
+		this.modules = new JTextPane();
+		modules.setEditable(false);
+		modules.setContentType("text/html");
+		((HTMLDocument)modules.getDocument()).setBase(mods);
+		modules.addHyperlinkListener(new HyperlinkListener(){
+			public void hyperlinkUpdate(HyperlinkEvent e) {
+				if(e.getEventType() == HyperlinkEvent.EventType.ACTIVATED) {
+					if(Desktop.isDesktopSupported()) {
+						try{ Desktop.getDesktop().browse(e.getURL().toURI()); }
+						catch(Exception ex){ insertText("Cannot load module file.", help); }
+					}
+				}
+			}
+		});
 
-		JComponent tab5 = makeTextPanel("Panel 3");
-		tabbedPane2.addTab("My Files", null, tab5, "User created Logo files");
+		JComponent tab2 = new JScrollPane(this.modules);
+		this.tabbedPane2.add(tab2, 1);
+		this.tabbedPane2.setTitleAt(1, "Modules");
+		this.tabbedPane2.setToolTipTextAt(1, "Learning modules");
 
-		JComponent tab6 = makeTextPanel("Panel 4");
-		tabbedPane2.addTab("Library", null, tab6, "Function library");
+		JComponent tab3 = new JScrollPane();
+		//tabbedPane2.addTab("Library", null, tab3, "Function library");
+
+		tabbedPane2.addChangeListener(new ChangeListener(){
+			public void stateChanged(ChangeEvent e){
+				if(tabbedPane2.getSelectedIndex() == 1){ updateModules(); }
+			}
+		});
 
 		//set up user input field
 		this.listener = new JTextField("", 30);
@@ -245,7 +287,7 @@ public class MLogo implements ActionListener, KeyListener, ChangeListener, Compo
 		c.gridheight = 2;
 		c.weightx = 1.0;
 		c.weighty = 1.0;
-		pane.add(splitPane, c); //split pane
+		frame.add(splitPane, c); //split pane
 
 		c.fill = GridBagConstraints.VERTICAL;
 		c.ipadx = 300;
@@ -255,7 +297,7 @@ public class MLogo implements ActionListener, KeyListener, ChangeListener, Compo
 		c.gridheight = 2;
 		c.weightx = 0.0;
 		c.weighty = 0.0;
-		pane.add(tabbedPane2, c); //tutor and lib pane
+		frame.add(tabbedPane2, c); //tutor and lib pane
 
 		c.fill = GridBagConstraints.BOTH;
 		c.ipadx = 0;
@@ -265,7 +307,7 @@ public class MLogo implements ActionListener, KeyListener, ChangeListener, Compo
 		c.gridheight = 1;
 		c.weightx = 0.0;
 		c.weighty = 0.0;
-		pane.add(listener, c); //user input pane
+		frame.add(listener, c); //user input pane
 
 		c.fill = GridBagConstraints.BOTH;
 		c.ipadx = 300;
@@ -275,28 +317,18 @@ public class MLogo implements ActionListener, KeyListener, ChangeListener, Compo
 		c.gridheight = 1;
 		c.weightx = 0.0;
 		c.weighty = 0.0;
-		pane.add(turtlePane, c); //small turtle graphics pane
-
-		frame.add(pane);
-		frame.pack();
-		frame.setVisible(true);
+		frame.add(turtlePane, c); //small turtle graphics pane
 
 		frame.addComponentListener(this);
-	}
-
-	protected static JComponent makeTextPanel(String text) {
-		JPanel panel = new JPanel(false);
-		JLabel filler = new JLabel(text);
-		filler.setHorizontalAlignment(JLabel.CENTER);
-		panel.setLayout(new GridLayout(1, 1));
-		panel.add(filler);
-		return panel;
+		frame.pack();
+		frame.setVisible(true);
 	}
 
 	//ActionEvent method
 	public void actionPerformed(ActionEvent evt) {
 		this.input += listener.getText();
 		this.output = listener.getText();
+		
 		try{
 			if(Parser.complete(input).size() > 0){ this.lineCount += 1; this.input += "\n"; }
 		}
@@ -304,7 +336,7 @@ public class MLogo implements ActionListener, KeyListener, ChangeListener, Compo
 			this.lineCount = 0;
 		}
 		if(this.lineCount > 1 && !"end".equals(listener.getText())){ insertText(">>" + this.output, terminal); }
-		else													   { insertText(">" + this.output, terminal);  }
+		else if(!listener.getText().contains("clear"))			   { insertText(">" + this.output, terminal);  }
 		listener.setText("");
 	}
 
@@ -359,9 +391,8 @@ public class MLogo implements ActionListener, KeyListener, ChangeListener, Compo
 		}
 		catch(RuntimeError e) {
 			insertText(String.format("runtime error: %s%n", e.getMessage()), help);
-			//e.printStackTrace();
 			for(LAtom atom : e.trace) {
-				insertText(String.format("\tin %s%n", atom), help);
+				insertText(String.format("<pre>\tin %s%n</pre>", atom), help);
 			}
 			this.input = "";
 			this.lineCount = 0;
@@ -369,9 +400,45 @@ public class MLogo implements ActionListener, KeyListener, ChangeListener, Compo
 		}
 	}
 
+	public void updateModules(){
+		File dir = new File(fileLoc + "/modules/");
+		boolean changed = false;
+		dir.mkdirs();
+
+		File[] files = dir.listFiles(new FilenameFilter(){
+			public boolean accept(File f, String name){
+				return name.endsWith("html");
+			}
+		});
+
+		if(files.length != moduleFiles.length){ 
+			changed = true; 
+		}
+		else{
+			for(int i = 0; i < files.length; i += 1){
+				if(!files[i].getName().equals(moduleFiles[i].getName())){ 
+					changed = true;
+					break;
+				}
+			}
+		}
+
+		if(files.length == 0){
+			modules.setText("");
+			insertText("No module files found, make sure any module files you want to use are stored in the 'modules' folder.", modules);
+		}
+		else if(changed){
+			modules.setText("");
+			for(File file: files){
+				insertText("<a href=\"" + file.getName() + "\">" + file.getName().replaceFirst(".html", "") + "</a>", modules);
+			}
+		}
+
+		moduleFiles = files;
+	}
+
 	private void changeState(){
 		int index = this.tabbedPane1.getSelectedIndex();
-		GridBagConstraints c = new GridBagConstraints();
 		Dimension dim = this.frame.getSize();
 
 		if(index == 1){
@@ -381,23 +448,24 @@ public class MLogo implements ActionListener, KeyListener, ChangeListener, Compo
 
 			int width = this.tabbedPane1.getWidth();
 			int height = this.splitPane.getDividerLocation();
-			this.container.remove(this.turtlePane);
-			this.pane.remove(this.turtlePane);
+			this.tContainer.remove(this.turtlePane);
+			this.frame.remove(this.turtlePane);
 			this.t.resize(width, height);
 			this.turtlePane = this.t.getTurtle();
-			this.container.add(this.turtlePane);
+			this.tContainer.add(this.turtlePane);
 			this.frame.setPreferredSize(dim);
 			this.frame.pack();
 		}
 		else if(currentTab == 1){
-			this.container.remove(this.turtlePane);
+			this.tContainer.remove(this.turtlePane);
 
 			this.splitPane.setOneTouchExpandable(true);
 			this.splitPane.setEnabled(true);
 			this.splitPane.setDividerLocation(0.5);
 
-			this.t.resize(375, 315);
+			this.t.resize(380, 320);
 			this.turtlePane = t.getTurtle();
+			GridBagConstraints c = new GridBagConstraints();
 			c.anchor = GridBagConstraints.CENTER;
 			c.fill = GridBagConstraints.BOTH;
 			c.ipadx = 300;
@@ -407,7 +475,7 @@ public class MLogo implements ActionListener, KeyListener, ChangeListener, Compo
 			c.gridheight = 1;
 			c.weightx = 0.0;
 			c.weighty = 0.0;
-			this.pane.add(this.turtlePane, c);
+			this.frame.add(this.turtlePane, c);
 			this.frame.setPreferredSize(dim);
 			this.frame.pack();
 		}
@@ -465,6 +533,7 @@ public class MLogo implements ActionListener, KeyListener, ChangeListener, Compo
 					else{
 						sourceText = list.toString();
 						if(!sourceText.contains("@")){
+							String desc = list.description;
 							if(list.arguments != null){
 								sourceText = "local " + word.toString() + " bind " + list.arguments.toString() + sourceText;
 							}
@@ -472,6 +541,7 @@ public class MLogo implements ActionListener, KeyListener, ChangeListener, Compo
 								sourceText = "local " + word.toString() + " " + sourceText;
 							}
 							writer.println(sourceText);
+							writer.println("describe [" + desc + "]");
 							writer.println();
 						}
 					}
@@ -544,80 +614,106 @@ public class MLogo implements ActionListener, KeyListener, ChangeListener, Compo
 
 	private void describe(Environment e){
 		HashMap<String, String> map = new HashMap<String, String>();
-		map.put("args", "Takes a list input and returns the arguments associated with that list.");
+		map.put("args", "Returns the arguments associated with an input list.");
 		map.put("ascall", "Converts the input word to a call.");
 		map.put("asname", "Covnerts the input word to a name.");
 		map.put("asvalue", "Converts the input word to a value.");
-		map.put("back", "Moves the turtle back by the number of units specified by the input.");
+		map.put("back", "Moves the turtle back by the input number of units.");
 		map.put("bind", "Associates a list of arguments with another list. For example:<br><br>" +
 				"bind ['x][print :x]<br><br>" +
 				"returns the [print :x] list with the argument x bound to it. When used with the <a href=\"local.html\">local</a> command, " +
 				"bind can be used to create lists with arguments and associate these lists with words so that they can be run later.");
-		map.put("butfirst", "Description to be added later.");
-		map.put("butlast", "Description to be added later.");
-		map.put("clear", "Description to be added later.");
-		map.put("clrhelp", "Description to be added later.");
+		map.put("butfirst", "Returns the input list with all but the first element of that list.");
+		map.put("butlast", "Returns the input list with all but the last element of that list.");
+		map.put("clear", "Clears all messages printed to the terminal.");
+		map.put("clrhelp", "Clears all messages printed to the help window.");
 
-		map.put("clrwindow", "Description to be added later.");
-		map.put("describe", "Description to be added later.");
-		map.put("dif", "Description to be added later.");
-		map.put("edit", "Description to be added later.");
-		map.put("equal", "Description to be added later.");
-		map.put("erase", "Description to be added later.");
-		map.put("first", "Description to be added later.");
-		map.put("flatten", "Description to be added later.");
-		map.put("forward", "Description to be added later.");
-		map.put("fput", "Description to be added later.");
+		map.put("clrturtle", "Clears all lines drawn to the graphics window.");
+		map.put("describe", "Prints a description of the given word to the help window.");
+		map.put("dif", "Returns the difference of 2 given numbers.");
+		map.put("edit", "Loads a specified file to the editor pane for editing.");
+		map.put("equal?", "Returns true if the two inputs are equal, false if they are not.");
+		map.put("erase", "Deletes a user defined word. Note that system defined primitives cannot be erased.");
+		map.put("first", "Returns the first element in the input list.");
+		map.put("flatten", "Removes any sub-lists from the input list and inserts the contents of these sublists in the original list in their original " +
+				"order. For example:<br><br>" +
+				"[1 [2] 3 [[4 []] [] 5]]<br><br>" +
+				"would become<br><br>" +
+				"[1 2 3 4 5].");
+		map.put("forward", "Moves the turtle forward by the input number of units.");
+		map.put("fput", "Returns the input list with the input atom added to the front of the list.");
 
-		map.put("genDocs", "Description to be added later.");
-		map.put("getDesc", "Description to be added later.");
-		map.put("isGreater", "Description to be added later.");
-		map.put("help", "Description to be added later.");
-		map.put("home", "Description to be added later.");
-		map.put("desc?", "Description to be added later.");
-		map.put("item", "Description to be added later.");
-		map.put("join", "Description to be added later.");
-		map.put("last", "Description to be added later.");
-		map.put("left", "Description to be added later.");
+		map.put("genDocs", "Generates a help document for each word in the system word list with the word's name, arguments, and description. " +
+				"System generated primitive words are all given descriptions automatically, user defined words need to be described by the user " +
+				"after they are created using the <a href=\"describe.html\">describe</a> command<br><br>." +
+				"This command will only generate documents for words that do not currently have a document file in the docs folder. To update existing " +
+				"documentation, see the <a href=\"regenDocs.html\">regenDocs</a> command.");
+		map.put("getDesc", "Prints the input word's name and description to the help window.");
+		map.put("greater?", "Returns true if the first input is greater than the second input, false if it is not.");
+		map.put("help", "Prints the full list of words to the help window along with their argument lists and links to these documentation files for " +
+				"more information.");
+		map.put("home", "Resets the turtle's position to the center of the drawing area (X0 Y0).");
+		map.put("if", "Executes the input list if and only if the input conditions are true.");
+		map.put("item", "Returns the item in the input list at the input number position in the list, starting at 0. Example:<br><br>" +
+				"item 3 [1 2 3 4 5] returns 4<br><br>" +
+				"Note that if the input number is greater than the length of the list, the empty list '[]' will be output instead. Example:<br><br>" +
+				"item 5 [1 2 3 4 5] returns []");
+		map.put("join", "Returns the combination of the two input lists as a single list. Example:<br><br>" +
+				"join [1 [2 3] [4 [5 []]] [6 [7] 8 [] 9 [10]] returns [1 [2 3] [4 [5 []] 6 [7] 8 [] 9 [10]]");
+		map.put("last", "Returns the last element in the input list.");
+		map.put("left", "Turns the turtle left by the input number of degrees.");
 
-		map.put("less?", "Description to be added later.");
-		map.put("list?", "Description to be added later.");
-		map.put("load", "Description to be added later.");
-		map.put("local", "Description to be added later.");
-		map.put("lput", "Description to be added later.");
-		map.put("make", "Description to be added later.");
-		map.put("member", "Description to be added later.");
-		map.put("negate", "Description to be added later.");
-		map.put("num?", "Description to be added later.");
-		map.put("output", "Description to be added later.");
+		map.put("less?", "Returns true if the first input is less than the second input, false if it is not.");
+		map.put("list?", "Returns true if the input is a list, false if it is not.");
+		map.put("load", "Loads and runs the contents of the file specified by the input filename.");
+		map.put("local", "Creates a new local variable with the input name and value.");
+		map.put("lput", "Returns the input list with the input atom added to the back of the list.");
+		map.put("make", "Creates a new local variable with the input name and value. If the input name already exists as a variable, make will" +
+				"instead modify that value rather than creating a new variable.");
+		map.put("member", "Searches a list for the input atom and returns a list containing that atom and all elements after it. Example:<br><br>" +
+				"member 'elements [return all elements after atom] returns [elements after atom]<br><br>" +
+				"If the input atom cannot be found in the list, the empty list '[]' will be output instead. Example:" +
+				"member 6 [1 2 3 4 5] returns []");
+		map.put("negate", "Returns the negative of the input number."); 
+		map.put("num?", "Returns true if the input word is a number, false if it is not.");
+		map.put("output", "Stops the current process and returns the given atom as output.");
 
-		map.put("pendown", "Description to be added later.");
-		map.put("penup", "Description to be added later.");
-		map.put("print", "Description to be added later.");
-		map.put("println", "Description to be added later.");
-		map.put("product", "Description to be added later.");
-		map.put("quotient", "Description to be added later.");
-		map.put("random", "Description to be added later.");
-		map.put("readlist", "Description to be added later.");
-		map.put("regenDocs", "Description to be added later.");
-		map.put("remainder", "Description to be added later.");
+		map.put("pendown", "Lowers the drawing pen so that lines will be drawn when the turtle moves.");
+		map.put("penup", "Raises the drawing pen so that no lines will be drawn when the turtle moves.");
+		map.put("print", "Prints the input to the terminal window.");
+		map.put("println", "Prints an empty line to the terminal window.");
+		map.put("product", "Returns the product of 2 given numbers.");
+		map.put("quotient", "Returns the quotient of 2 given numbers.");
+		map.put("random", "Returns a random element from a given list.");
+		map.put("readlist", "Returns the previous line from the terminal as a list.");
+		map.put("regenDocs", "Deletes any existing help documents and generates new documents for all words in the system word list with current definitions, " +
+				"reflecting any changes made to a word's definitions since the document for that word was last generated.");
+		map.put("remainder", "Returns the remainder of a division of 2 given numbers.");
 
-		map.put("repeat", "Description to be added later.");
-		map.put("right", "Description to be added later.");
-		map.put("run", "Description to be added later.");
-		map.put("save", "Description to be added later.");
-		map.put("saveFile", "Description to be added later.");
-		map.put("setcolor", "Description to be added later.");
-		map.put("size", "Description to be added later.");
-		map.put("stop", "Description to be added later.");
-		map.put("sum", "Description to be added later.");
-		map.put("thing", "Description to be added later.");
+		map.put("repeat", "Runs an input list a number of times specified by the input number.");
+		map.put("right", "Turns the turtle right by the input number of degrees.");
+		map.put("run", "Runs the input list as a set of instructions.");
+		map.put("save", "Saves the contents of the editor window to a file specified by the input filename. Note that this will overwrite any information " +
+				"already stored in the specified file if that file already exists.");
+		map.put("saveEnv", "Saves any user defined words in the system to the file 'saveFile' to be loaded the next time Loko is run.");
+		map.put("setcolor", "Sets the color of the turtle's drawing pen based on the 3 input values. These values are numbers from 0 to 255 and represent" +
+				"the red, green, and blue color saturation in that order. Different combinations of these values produce a broad range of colors.<br><br>" +
+				"Examples:<br>" +
+				"White - 255, 255, 255<br>" +
+				"Black - 0, 0, 0<br>" +
+				"Orange - 255, 128, 0<br>" +
+				"Yellow - 255, 255, 0<br>" +
+				"Purple - 128, 0, 255<br>");
+		map.put("size", "Returns the size (number of elements) of the input list.");
+		map.put("stop", "Stops execution of the current process.");
+		map.put("sum", "Returns the sum of 2 given numbers.");
+		map.put("thing", "Returns the value associated with a given word.");
 
-		map.put("trace", "Description to be added later.");
-		map.put("unless", "Description to be added later.");
-		map.put("version", "Description to be added later.");
-		map.put("word?", "Description to be added later.");
-		map.put("words", "Description to be added later.");
+		map.put("trace", "Prints a list of the scopes in which the current procedure is being run, beginning with the most specific local scope and" +
+				"ending with the global scope.");
+		map.put("unless", "Executes the input list if and only if the input conditions are false.");
+		map.put("version", "Prints the current Loko version number.");
+		map.put("word?", "Returns true if the input is a word, false if it is not.");
 
 		java.util.List<LWord> words = new ArrayList<LWord>(e.words());
 		Collections.sort(words);
@@ -631,60 +727,14 @@ public class MLogo implements ActionListener, KeyListener, ChangeListener, Compo
 		}
 	}
 
-	private void primitiveIO(Environment e, boolean trace) {
+	private void primitiveIO(Environment e) {
 		final LWord a = new LWord(LWord.Type.Name, "word");
 		final LWord b = new LWord(LWord.Type.Name, "filename");
 		final LWord c = new LWord(LWord.Type.Name, "description");
-		final Scanner in = new Scanner(System.in);
-
-		if (trace) {
-			e.setTracer(new Tracer() {
-				public void begin()  { System.out.println("tracer: begin."); }
-				public void end()    { System.out.println("tracer: end.");   }
-				//public void tick() { System.out.println("tracer: tick.");  }
-
-				public void callPrimitive(String name, Map<LAtom, LAtom> args) {
-					System.out.format("trace: PRIM %s%s%n",
-							name,
-							args.size() > 0 ? " " + args : ""
-							);
-				}
-				public void call(String name, Map<LAtom, LAtom> args, boolean tail) {
-					System.out.format("trace: CALL %s%s%s%n",
-							name,
-							args.size() > 0 ? " " + args : "",
-									tail ? " (tail)" : ""
-							);
-				}
-				public void output(String name, LAtom val, boolean implicit) {
-					System.out.format("trace: RETURN %s- %s%s%n", name, val, implicit ? " (implicit)" : "");
-				}
-				public void stop(String name, boolean implicit) {
-					System.out.format("trace: STOP %s%s%n", name, implicit ? " (implicit)" : "");
-				}
-			});
-		}
 
 		e.bind(new LWord(LWord.Type.Prim, "version") {
 			public void eval(Environment e) {
 				insertText(MLogo.version, terminal);
-			}
-		});
-
-		e.bind(new LWord(LWord.Type.Prim, "words") {
-			public void eval(Environment e) {
-				java.util.List<LWord> words = new ArrayList<LWord>(e.words());
-				Collections.sort(words);
-				Integer count = 1;
-				for(LWord word : words) {
-					String type;
-					if(word.type == LWord.Type.Call){ type = "call"; }
-					else if(word.type == LWord.Type.Value){ type = "value"; }
-					else if(word.type == LWord.Type.Name){ type = "name"; }
-					else { type = "Prim"; }
-					insertText(count.toString() + " " + word.toString() + " " + type, help); 
-					count += 1; 
-				}
 			}
 		});
 
@@ -701,11 +751,12 @@ public class MLogo implements ActionListener, KeyListener, ChangeListener, Compo
 
 		e.bind(new LWord(LWord.Type.Prim, "trace") {
 			public void eval(Environment e) {
-				System.out.println("trace: ");
+				insertText("Trace:<br>", help);
 				for(LAtom s : e.trace()) {
-					System.out.println("\t" + s);
+					insertText(s.toString(), help);
 				}
-				System.out.println();
+				insertText("'global", help);
+				
 			}
 		});
 
@@ -723,7 +774,23 @@ public class MLogo implements ActionListener, KeyListener, ChangeListener, Compo
 
 		e.bind(new LWord(LWord.Type.Prim, "readlist") {
 			public void eval(Environment e) {
-				e.output(Parser.parse(in.nextLine()));
+				String term = "";
+				try{ term = ((HTMLDocument)terminal.getDocument()).getText(0, terminal.getDocument().getLength()); }
+				catch(BadLocationException ex){ ex.printStackTrace(); }
+
+				Scanner in = new Scanner(term);
+				Scanner next = new Scanner(term);
+				if(next.hasNextLine()){ next.nextLine(); }
+				else{ e.output(Parser.parse("")); }
+
+				while(next.hasNextLine()){
+					next.nextLine();
+					String str = in.nextLine().replaceFirst(">", "");
+					
+					if(!next.hasNextLine()){
+						e.output(Parser.parse(str));
+					}
+				}
 			}
 		});
 
@@ -752,10 +819,11 @@ public class MLogo implements ActionListener, KeyListener, ChangeListener, Compo
 					insertText("<a href=\"" + filename + ".html\">" + word.toString() + "</a>" + args, help);
 					generateDoc(word, true);
 				}
+				insertText("Click on a word to learn more about how it works.", help);
 			}
 		});
 
-		e.bind(new LWord(LWord.Type.Prim, "clrwindow") {
+		e.bind(new LWord(LWord.Type.Prim, "clear") {
 			public void eval(Environment e) {
 				terminal.setText("");
 			}
@@ -766,6 +834,7 @@ public class MLogo implements ActionListener, KeyListener, ChangeListener, Compo
 				help.setText("");
 			}
 		});
+
 		e.bind(new LWord(LWord.Type.Prim, "load") {
 			public void eval(Environment e) {
 				LAtom o = e.thing(b);
@@ -776,6 +845,7 @@ public class MLogo implements ActionListener, KeyListener, ChangeListener, Compo
 				setInput(loadFile(filename.toString()));
 			}
 		}, b);
+
 		e.bind(new LWord(LWord.Type.Prim, "save") {
 			public void eval(Environment e) {
 				LAtom o = e.thing(b);
@@ -787,11 +857,13 @@ public class MLogo implements ActionListener, KeyListener, ChangeListener, Compo
 				editor.saveFile(file);
 			}
 		}, b);
+
 		e.bind(new LWord(LWord.Type.Prim, "saveEnv") {
 			public void eval(Environment e) {
 				saveEnv(e);
 			}
 		});
+
 		e.bind(new LWord(LWord.Type.Prim, "edit") {
 			public void eval(Environment e) {
 				LAtom o = e.thing(b);
@@ -803,6 +875,7 @@ public class MLogo implements ActionListener, KeyListener, ChangeListener, Compo
 				editor.openFile(file);
 			}
 		}, b);
+
 		e.bind(new LWord(LWord.Type.Prim, "describe") {
 			public void eval(Environment e) {
 				if(!e.thing(a).toString().contains("@")){
@@ -823,9 +896,10 @@ public class MLogo implements ActionListener, KeyListener, ChangeListener, Compo
 				}
 			}
 		}, a, c);
+
 		e.bind(new LWord(LWord.Type.Prim, "getDesc") {
 			public void eval(Environment e) {
-				if(a.type != LWord.Type.Call){
+				if(a.type != LWord.Type.Call && e.thing(a) instanceof LList){
 					LAtom o = e.thing(a);
 					String desc = ((LList)o).description;
 					if("".equals(desc)){ desc = "Description not found, please add a brief description of this word using the " +
@@ -835,10 +909,11 @@ public class MLogo implements ActionListener, KeyListener, ChangeListener, Compo
 					insertText(output, help);
 				}
 				else{
-					insertText("Cannot describe non-list word.", help);
+					insertText("Cannot describe non-list atom.", help);
 				}
 			}
 		}, a);
+
 		e.bind(new LWord(LWord.Type.Prim, "genDocs") {
 			public void eval(Environment e) {
 				java.util.List<LWord> words = new ArrayList<LWord>(e.words());
@@ -849,6 +924,7 @@ public class MLogo implements ActionListener, KeyListener, ChangeListener, Compo
 				insertText("Documents generated in docs folder.", help);
 			}
 		});
+
 		e.bind(new LWord(LWord.Type.Prim, "regenDocs") {
 			public void eval(Environment e) {
 				java.util.List<LWord> words = new ArrayList<LWord>(e.words());
@@ -873,7 +949,7 @@ class TextEditor extends JPanel {
 
 	public TextEditor(MLogo m) {
 		this.mlogo = m;
-		this.editor.setTabSize(4);
+		this.editor.setTabSize(2);
 		this.setLayout(new BorderLayout());
 
 		JScrollPane scroll = new JScrollPane(editor);

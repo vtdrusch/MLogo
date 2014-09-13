@@ -7,28 +7,45 @@ import java.text.*;
 import javax.swing.*;
 import static com.bme.logo.Primitives.*;
 
-public class TurtleGraphics {
+public class TurtleGraphics implements MouseListener {
 
 	static int WIDTH;
 	static int HEIGHT;
+	static final int WIDTH_OFFSCREEN = 2000;
+	static final int HEIGHT_OFFSCREEN = 2000;
+	static int X_OFFSET;
+	static int Y_OFFSET;
 	private BufferedImage buffer;
+	private BufferedImage bufferOffscreen;
 	private Image status;
 	private Turtle turtle;
 	private TurtlePanel turtlePanel;
 	private Graphics g;
+	private Graphics g2;
 	private Graphics sg;
 	private Environment e;
 
 	public TurtleGraphics(Environment e, int width, int height) {
 		TurtleGraphics.WIDTH = width;
 		TurtleGraphics.HEIGHT = height;
+		X_OFFSET = (WIDTH - WIDTH_OFFSCREEN) / 2;
+		Y_OFFSET = (HEIGHT - HEIGHT_OFFSCREEN) / 2;
 		buffer = new BufferedImage(WIDTH, HEIGHT, BufferedImage.TYPE_INT_ARGB);
+		bufferOffscreen = new BufferedImage(WIDTH_OFFSCREEN, HEIGHT_OFFSCREEN, BufferedImage.TYPE_INT_ARGB);
 		status = new BufferedImage(WIDTH, HEIGHT, BufferedImage.TYPE_INT_ARGB);
 		turtle = new Turtle();
 		turtlePanel = new TurtlePanel(turtle, buffer, status);
+		turtlePanel.addMouseListener(this);
 		g = buffer.createGraphics();
+		g2 = bufferOffscreen.createGraphics();		
 		sg = status.getGraphics();
 		e = e;
+		
+		synchronized(bufferOffscreen) {
+			g2.setColor(Color.BLACK);
+			g2.fillRect(0, 0, WIDTH_OFFSCREEN, HEIGHT_OFFSCREEN);
+		}
+		
 		primitiveTurtle(e);
 	}
 
@@ -50,27 +67,26 @@ public class TurtleGraphics {
 		int prevWidth = TurtleGraphics.WIDTH;
 		int prevHeight = TurtleGraphics.HEIGHT;
 		
-		if((isEven(prevWidth) && !isEven(width)) || (!isEven(prevWidth) && isEven(width))){
+		if(!isEven(width)){
 			width += 1;
 		}
-		if((isEven(prevHeight) && !isEven(height)) || (isEven(prevHeight) && !isEven(height))){
+		if(!isEven(height)){
 			height += 1;
 		}
 		
 		TurtleGraphics.WIDTH = width;
 		TurtleGraphics.HEIGHT = height;
-		
-		int offsetX = (WIDTH - prevWidth) / 2;
-		int offsetY = (HEIGHT - prevHeight) / 2;
+		X_OFFSET = (WIDTH - WIDTH_OFFSCREEN) / 2;
+		Y_OFFSET = (HEIGHT - HEIGHT_OFFSCREEN) / 2;
 
-		BufferedImage img = buffer;
+		BufferedImage img = bufferOffscreen;
 		buffer = new BufferedImage(WIDTH, HEIGHT, BufferedImage.TYPE_INT_RGB);
 		Graphics2D g2d = buffer.createGraphics();
 		try{
 			g2d.setRenderingHint(RenderingHints.KEY_INTERPOLATION, RenderingHints.VALUE_INTERPOLATION_BICUBIC);
 			g2d.setBackground(Color.BLACK);
 			g2d.clearRect(0, 0, WIDTH, HEIGHT);
-			g2d.drawImage(img, offsetX, offsetY, prevWidth, prevHeight, null);
+			g2d.drawImage(img, X_OFFSET, Y_OFFSET, WIDTH_OFFSCREEN, HEIGHT_OFFSCREEN, null);
 		}
 		finally{
 			g2d.dispose();
@@ -95,6 +111,18 @@ public class TurtleGraphics {
 		if(turtle.window == null){ setup(); }
 		return turtle.window;
 	}
+	
+	public void mouseClicked(MouseEvent e){ 
+		//System.out.println(e.getX() + " " + e.getY());
+	}
+	
+	public void mouseEntered(MouseEvent e){ }
+	
+	public void mouseExited(MouseEvent e){ }
+	
+	public void mousePressed(MouseEvent e){ }
+	
+	public void mouseReleased(MouseEvent e){ }
 
 	public void primitiveTurtle(Environment e) {
 		final LWord dist = new LWord(LWord.Type.Name, "distance");
@@ -131,12 +159,16 @@ public class TurtleGraphics {
 				e.pause();
 			}
 		}, deg);
-		e.bind(new LWord(LWord.Type.Prim, "clear") {
+		e.bind(new LWord(LWord.Type.Prim, "clrturtle") {
 			public void eval(Environment e) {
 				setup();
 				synchronized(buffer) {
 					g.setColor(Color.BLACK);
 					g.fillRect(0, 0, WIDTH, HEIGHT);
+				}
+				synchronized(bufferOffscreen) {
+					g2.setColor(Color.BLACK);
+					g2.fillRect(0, 0, WIDTH_OFFSCREEN, HEIGHT_OFFSCREEN);
 				}
 				turtle.window.repaint();
 			}
@@ -205,9 +237,10 @@ public class TurtleGraphics {
 					Math.min(5, Math.abs(turtle.goalDistance)));
 			turtle.goalDistance -= traveled;
 
+			int ox = (int)turtle.x;
+			int oy = (int)turtle.y;
+			
 			synchronized(buffer) {
-				int ox = (int)turtle.x;
-				int oy = (int)turtle.y;
 				turtle.x += traveled * Math.cos(Math.toRadians(turtle.degrees));
 				turtle.y += traveled * Math.sin(Math.toRadians(turtle.degrees));
 				turtlePanel.penStat(turtle.pendown, turtle.pencolor, turtle.heading, turtle.x, turtle.y);
@@ -216,6 +249,17 @@ public class TurtleGraphics {
 					g.drawLine(ox, oy, (int)turtle.x, (int)turtle.y);
 				}
 			}
+			int x = (int)turtle.x - X_OFFSET;
+			int y = (int)turtle.y - Y_OFFSET;
+			synchronized(bufferOffscreen) {
+				ox -= X_OFFSET;
+				oy -= Y_OFFSET;
+				if (turtle.pendown) {
+					g2.setColor(turtle.pencolor);
+					g2.drawLine(ox, oy, x, y);
+				}
+			}
+			
 			turtle.window.repaint();
 			return turtle.goalDistance == 0;
 		}
