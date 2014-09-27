@@ -953,12 +953,6 @@ public class MLogo implements ActionListener, KeyListener, ChangeListener, Compo
 				insertText("New documents generated in docs folder.", help);
 			}
 		});
-		
-		e.bind(new LWord(LWord.Type.Prim, "halt") {
-			public void eval(Environment e) {
-				e.reset();
-			}
-		});
 	}
 }
 
