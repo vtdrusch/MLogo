@@ -51,7 +51,6 @@ public class MLogo implements ActionListener, KeyListener, ChangeListener, Compo
 	public MLogo(){
 		e = kernel();
 		primitiveIO(e);
-		describe(e);
 
 		try				   { docs = new URL("file:///" + fileLoc + "/docs/"); }
 		catch(Exception ex){ ex.printStackTrace();							  }
@@ -82,6 +81,7 @@ public class MLogo implements ActionListener, KeyListener, ChangeListener, Compo
 		moduleFiles = new File[0];
 
 		t = new TurtleGraphics(e, 380, 320);
+		describe(e);
 		repl(e, t);
 	}
 
@@ -170,7 +170,21 @@ public class MLogo implements ActionListener, KeyListener, ChangeListener, Compo
 	private void initGUI(TurtleGraphics t){
 		//initialize the gui frame
 		this.frame = new JFrame(version);
-		this.frame.setDefaultCloseOperation(JFrame.EXIT_ON_CLOSE);
+		this.frame.addWindowListener(new WindowListener(){
+			public void windowActivated(WindowEvent evt){}
+			public void windowClosed(WindowEvent evt){}
+
+			public void windowClosing(WindowEvent evt){
+				saveEnv(e);
+				editor.savePrev();
+				System.exit(0);
+			}
+
+			public void windowDeactivated(WindowEvent evt){}
+			public void windowDeiconified(WindowEvent evt){}
+			public void windowIconified(WindowEvent evt){}
+			public void windowOpened(WindowEvent evt){}
+		});
 		this.frame.setPreferredSize(new Dimension(1024, 768));
 		this.frame.setLayout(new GridBagLayout());
 		GridBagConstraints c = new GridBagConstraints();
@@ -328,7 +342,7 @@ public class MLogo implements ActionListener, KeyListener, ChangeListener, Compo
 	public void actionPerformed(ActionEvent evt) {
 		this.input += listener.getText();
 		this.output = listener.getText();
-		
+
 		try{
 			if(Parser.complete(input).size() > 0){ this.lineCount += 1; this.input += "\n"; }
 		}
@@ -381,7 +395,7 @@ public class MLogo implements ActionListener, KeyListener, ChangeListener, Compo
 			while(true) {
 				// execute until the interpreter is paused
 				if (!Interpreter.runUntil(env)) { return; }
-
+				
 				// update the display until animation is complete
 				while(!t.update()) {
 					try { Thread.sleep(1000 / 30); }
@@ -553,6 +567,10 @@ public class MLogo implements ActionListener, KeyListener, ChangeListener, Compo
 		catch(IOException ex){
 			insertText("Unable to save to saveFile", help);
 		}
+	}
+
+	public void saveCurrentFile(){
+		editor.saveFile(editor.getCurrentFile());
 	}
 
 	public void generateDoc(LWord word, boolean regen){
@@ -756,7 +774,7 @@ public class MLogo implements ActionListener, KeyListener, ChangeListener, Compo
 					insertText(s.toString(), help);
 				}
 				insertText("'global", help);
-				
+
 			}
 		});
 
@@ -786,7 +804,7 @@ public class MLogo implements ActionListener, KeyListener, ChangeListener, Compo
 				while(next.hasNextLine()){
 					next.nextLine();
 					String str = in.nextLine().replaceFirst(">", "");
-					
+
 					if(!next.hasNextLine()){
 						e.output(Parser.parse(str));
 					}
@@ -933,6 +951,12 @@ public class MLogo implements ActionListener, KeyListener, ChangeListener, Compo
 					generateDoc(word, true);
 				}
 				insertText("New documents generated in docs folder.", help);
+			}
+		});
+		
+		e.bind(new LWord(LWord.Type.Prim, "halt") {
+			public void eval(Environment e) {
+				e.reset();
 			}
 		});
 	}
@@ -1088,10 +1112,17 @@ class TextEditor extends JPanel {
 		}
 	}
 
-	private void savePrev(){
+	public void savePrev(){
 		if(changed) {
-			if(JOptionPane.showConfirmDialog(this, "Would you like to save "+ currentFile +" ?", "Save", JOptionPane.YES_NO_OPTION) == JOptionPane.YES_OPTION)
-				saveFile(currentFile);
+			if(JOptionPane.showConfirmDialog(this, "Would you like to save "+ currentFile +" ?", "Save", 
+					JOptionPane.YES_NO_OPTION) == JOptionPane.YES_OPTION){
+				if("New File".equals(currentFile)){
+					saveFileAs();
+				}
+				else{
+					saveFile(currentFile);
+				}
+			}
 		}
 	}
 
