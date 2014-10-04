@@ -8,8 +8,8 @@
 	<target name="compilelib" depends="clean">
 		<mkdir dir="build"/>
 		<javac
-			source="1.5"
-			target="1.5"
+			source="1.7"
+			target="1.7"
 			srcdir="src/com/bme/logo"
 			destdir="build"
 			debug="on"
@@ -18,7 +18,6 @@
 			deprecation="on"
 		>
 			<compilerarg value="-Xlint"/>
-			<!--<compilerarg value="-Xbootclasspath:/res/1.5/rt.jar"/>-->
 		</javac>
 		<mkdir dir="dist"/>
 		<jar destfile="dist/Logo.jar" basedir="build" />
@@ -26,8 +25,8 @@
 
 	<target name="mlogo" depends="compilelib">
 		<javac
-			source="1.5"
-			target="1.5"
+			source="1.7"
+			target="1.7"
 			srcdir="src/com/bme/mlogo"
 			destdir="build"
 			debug="on"
@@ -36,7 +35,6 @@
 			deprecation="on"
 		>
 			<compilerarg value="-Xlint"/>
-			<!--<compilerarg value="-Xbootclasspath:/res/1.5/rt.jar"/>-->
 		</javac>
 		<mkdir dir="dist"/>
 		<jar destfile="dist/MLogo.jar" basedir="build">

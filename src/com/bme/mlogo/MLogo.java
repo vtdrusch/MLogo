@@ -23,7 +23,7 @@ import javax.swing.text.html.*;
 
 import static com.bme.logo.Primitives.*;
 
-public class MLogo implements ActionListener, KeyListener, ChangeListener, ComponentListener {
+public class MLogo implements ActionListener, KeyListener, ChangeListener, ComponentListener{
 	static final String version = "Loko v1.0";
 	static final String fileLoc = System.getProperty("user.dir");
 	static URL docs;
@@ -47,6 +47,8 @@ public class MLogo implements ActionListener, KeyListener, ChangeListener, Compo
 	private JComponent turtlePane;
 	private Environment e;
 	private int currentTab = 0;
+	private int tSpeed = 30;
+	private boolean stopExec = false;
 
 	public MLogo(){
 		e = kernel();
@@ -72,7 +74,7 @@ public class MLogo implements ActionListener, KeyListener, ChangeListener, Compo
 
 		java.util.List<LWord> words = new ArrayList<LWord>(e.words());
 		Collections.sort(words);
-		for(LWord word : words) {
+		for(LWord word : words){
 			generateDoc(word, false);
 		}
 
@@ -85,7 +87,7 @@ public class MLogo implements ActionListener, KeyListener, ChangeListener, Compo
 		repl(e, t);
 	}
 
-	public static void main(String[] a) {
+	public static void main(String[] a){
 		new MLogo();
 	}
 
@@ -105,7 +107,7 @@ public class MLogo implements ActionListener, KeyListener, ChangeListener, Compo
 		this.frame.setTitle(title);
 	}
 
-	private void repl(Environment env, TurtleGraphics t) {
+	private void repl(Environment env, TurtleGraphics t){
 		this.initGUI(t);
 		if(this.saveFile.length() != 0){ setInput(this.loadFile(saveFile.getName())); }
 
@@ -114,10 +116,10 @@ public class MLogo implements ActionListener, KeyListener, ChangeListener, Compo
 		insertText("Hello, I will be your digital tutor.", help);
 		insertText("Type 'help' for a list of commands, type 'exit' to quit.", help);
 
-		while(true) {
+		while(true){
 			boolean newInput = true;
 			int count = 0;
-			try {
+			try{
 				while("".equals(input)){ 
 					try{
 						Thread.sleep(10);
@@ -131,7 +133,7 @@ public class MLogo implements ActionListener, KeyListener, ChangeListener, Compo
 					}
 					catch(InterruptedException e){ }
 				}
-				while(Parser.complete(input).size() > 0) {
+				while(Parser.complete(input).size() > 0){
 					try{
 						Thread.sleep(10);
 						count += 1;
@@ -144,17 +146,17 @@ public class MLogo implements ActionListener, KeyListener, ChangeListener, Compo
 					}
 					catch(InterruptedException e){ }
 				}
-				if ("exit".equals(input)) { this.saveEnv(env); break; }
+				if ("exit".equals(input)){ this.saveEnv(env); break; }
 				if (input.contains("load ")){ newInput = false; }
 				runString(env, input, t);
 				this.lineCount = 0;
 				if(newInput){ this.input = ""; }
 			}
-			catch(SyntaxError e) {
+			catch(SyntaxError e){
 				insertText(String.format("syntax error: %s", e.getMessage()), help);
 				insertText(String.format("<pre>\t%s</pre>", e.line), help);
 				String spacer = "<pre>\t";
-				for(int z = 0; z < e.lineIndex; z++) {
+				for(int z = 0; z < e.lineIndex; z++){
 					spacer += " ";
 				}
 				spacer += "^</pre>";
@@ -176,7 +178,9 @@ public class MLogo implements ActionListener, KeyListener, ChangeListener, Compo
 
 			public void windowClosing(WindowEvent evt){
 				saveEnv(e);
-				editor.savePrev();
+				if(!"New File".equals(editor.getCurrentFile())){
+					editor.savePrev();
+				}
 				System.exit(0);
 			}
 
@@ -185,6 +189,7 @@ public class MLogo implements ActionListener, KeyListener, ChangeListener, Compo
 			public void windowIconified(WindowEvent evt){}
 			public void windowOpened(WindowEvent evt){}
 		});
+		this.frame.addKeyListener(this);
 		this.frame.setPreferredSize(new Dimension(1024, 768));
 		this.frame.setLayout(new GridBagLayout());
 		GridBagConstraints c = new GridBagConstraints();
@@ -214,9 +219,9 @@ public class MLogo implements ActionListener, KeyListener, ChangeListener, Compo
 		this.terminal.setContentType("text/html");
 		((HTMLDocument)this.terminal.getDocument()).setBase(docs);
 		this.terminal.addHyperlinkListener(new HyperlinkListener(){
-			public void hyperlinkUpdate(HyperlinkEvent e) {
-				if(e.getEventType() == HyperlinkEvent.EventType.ACTIVATED) {
-					if(Desktop.isDesktopSupported()) {
+			public void hyperlinkUpdate(HyperlinkEvent e){
+				if(e.getEventType() == HyperlinkEvent.EventType.ACTIVATED){
+					if(Desktop.isDesktopSupported()){
 						try{ Desktop.getDesktop().browse(e.getURL().toURI()); }
 						catch(Exception ex){ insertText("Invalid link.", help); }
 					}
@@ -241,9 +246,9 @@ public class MLogo implements ActionListener, KeyListener, ChangeListener, Compo
 		help.setContentType("text/html");
 		((HTMLDocument)help.getDocument()).setBase(docs);
 		help.addHyperlinkListener(new HyperlinkListener(){
-			public void hyperlinkUpdate(HyperlinkEvent e) {
-				if(e.getEventType() == HyperlinkEvent.EventType.ACTIVATED) {
-					if(Desktop.isDesktopSupported()) {
+			public void hyperlinkUpdate(HyperlinkEvent e){
+				if(e.getEventType() == HyperlinkEvent.EventType.ACTIVATED){
+					if(Desktop.isDesktopSupported()){
 						try{ Desktop.getDesktop().browse(e.getURL().toURI()); }
 						catch(Exception ex){ insertText("Cannot find HTML documentation for this word, please ensure that this word's " +
 								"corresponding documentation is in the docs folder.", help); }
@@ -262,9 +267,9 @@ public class MLogo implements ActionListener, KeyListener, ChangeListener, Compo
 		modules.setContentType("text/html");
 		((HTMLDocument)modules.getDocument()).setBase(mods);
 		modules.addHyperlinkListener(new HyperlinkListener(){
-			public void hyperlinkUpdate(HyperlinkEvent e) {
-				if(e.getEventType() == HyperlinkEvent.EventType.ACTIVATED) {
-					if(Desktop.isDesktopSupported()) {
+			public void hyperlinkUpdate(HyperlinkEvent e){
+				if(e.getEventType() == HyperlinkEvent.EventType.ACTIVATED){
+					if(Desktop.isDesktopSupported()){
 						try{ Desktop.getDesktop().browse(e.getURL().toURI()); }
 						catch(Exception ex){ insertText("Cannot load module file.", help); }
 					}
@@ -339,7 +344,7 @@ public class MLogo implements ActionListener, KeyListener, ChangeListener, Compo
 	}
 
 	//ActionEvent method
-	public void actionPerformed(ActionEvent evt) {
+	public void actionPerformed(ActionEvent evt){
 		this.input += listener.getText();
 		this.output = listener.getText();
 
@@ -358,9 +363,13 @@ public class MLogo implements ActionListener, KeyListener, ChangeListener, Compo
 	public void keyPressed(KeyEvent e){ 
 		Integer keyCode = e.getKeyCode();
 		if(keyCode == 38){ listener.setText(output); }
+		if(keyCode == 16){ tSpeed = 60; 			 }
 	}
 
-	public void keyReleased(KeyEvent e){ }
+	public void keyReleased(KeyEvent e){ 
+		Integer keyCode = e.getKeyCode();
+		if(keyCode == 16){ tSpeed = 30; }
+	}
 
 	public void keyTyped(KeyEvent e){ }
 
@@ -388,30 +397,44 @@ public class MLogo implements ActionListener, KeyListener, ChangeListener, Compo
 		pane.setCaretPosition(doc.getLength());
 	}
 
-	private void runString(Environment env, String sourceText, TurtleGraphics t) {
-		try {
+	private void runString(Environment env, String sourceText, TurtleGraphics t){
+		try{
 			LList code = Parser.parse(sourceText);
 			Interpreter.init(code, env);
-			while(true) {
+			while(true){
+				//stop executing if stop flag is set
+				if(stopExec){ break; }
+				
 				// execute until the interpreter is paused
-				if (!Interpreter.runUntil(env)) { return; }
+				if(!Interpreter.runUntil(env)){ return; }
 				
 				// update the display until animation is complete
-				while(!t.update()) {
-					try { Thread.sleep(1000 / 30); }
-					catch(InterruptedException e) {}
+				while(!t.update()){
+					if(stopExec){ break; }
+					try{ Thread.sleep(1000 / tSpeed); }
+					catch(InterruptedException e){ }
 				}
 			}
 		}
-		catch(RuntimeError e) {
+		catch(RuntimeError e){
 			insertText(String.format("runtime error: %s%n", e.getMessage()), help);
-			for(LAtom atom : e.trace) {
+			for(LAtom atom : e.trace){
 				insertText(String.format("<pre>\tin %s%n</pre>", atom), help);
 			}
-			this.input = "";
-			this.lineCount = 0;
-			env.reset();
 		}
+		System.out.println("Something");
+		this.input = "";
+		this.lineCount = 0;
+		this.stopExec = false;
+		env.reset();
+	}
+	
+	public boolean getStop(){
+		return stopExec;
+	}
+	
+	protected void setStop(boolean s){
+		stopExec = s;
 	}
 
 	public void updateModules(){
@@ -496,8 +519,8 @@ public class MLogo implements ActionListener, KeyListener, ChangeListener, Compo
 		this.currentTab = index;
 	}
 
-	private String loadFile(String filename) {
-		try {
+	private String loadFile(String filename){
+		try{
 			File fileIn = new File("save/" + filename);
 			if(fileIn.length() == 0){
 				insertText("Cannot load empty file.", help);
@@ -505,7 +528,7 @@ public class MLogo implements ActionListener, KeyListener, ChangeListener, Compo
 			}
 			Scanner in = new Scanner(fileIn);
 			StringBuilder ret = new StringBuilder();
-			while(in.hasNextLine()) {
+			while(in.hasNextLine()){
 				// this will conveniently convert platform-specific
 				// newlines into an internal unix-style convention:
 				ret.append(in.nextLine()+"\n");
@@ -515,7 +538,7 @@ public class MLogo implements ActionListener, KeyListener, ChangeListener, Compo
 			ret.deleteCharAt(ret.length()-1);
 			return ret.toString();
 		}
-		catch(IOException e) {
+		catch(IOException e){
 			insertText(String.format("Unable to load file '%s'.%n", filename), help);
 			return null;
 		}
@@ -735,7 +758,7 @@ public class MLogo implements ActionListener, KeyListener, ChangeListener, Compo
 
 		java.util.List<LWord> words = new ArrayList<LWord>(e.words());
 		Collections.sort(words);
-		for(LWord word : words) {
+		for(LWord word : words){
 			if(e.thing(word) instanceof LList){
 				String value = ((LList)e.thing(word)).toString();
 				if(value.contains("@")){
@@ -745,19 +768,19 @@ public class MLogo implements ActionListener, KeyListener, ChangeListener, Compo
 		}
 	}
 
-	private void primitiveIO(Environment e) {
+	private void primitiveIO(Environment e){
 		final LWord a = new LWord(LWord.Type.Name, "word");
 		final LWord b = new LWord(LWord.Type.Name, "filename");
 		final LWord c = new LWord(LWord.Type.Name, "description");
 
-		e.bind(new LWord(LWord.Type.Prim, "version") {
-			public void eval(Environment e) {
+		e.bind(new LWord(LWord.Type.Prim, "version"){
+			public void eval(Environment e){
 				insertText(MLogo.version, terminal);
 			}
 		});
 
-		e.bind(new LWord(LWord.Type.Prim, "erase") {
-			public void eval(Environment e) {
+		e.bind(new LWord(LWord.Type.Prim, "erase"){
+			public void eval(Environment e){
 				LWord key = word(e, a);
 				// dereference the name to ensure that
 				// it originally had a binding.
@@ -767,10 +790,10 @@ public class MLogo implements ActionListener, KeyListener, ChangeListener, Compo
 			}
 		}, a);
 
-		e.bind(new LWord(LWord.Type.Prim, "trace") {
-			public void eval(Environment e) {
+		e.bind(new LWord(LWord.Type.Prim, "trace"){
+			public void eval(Environment e){
 				insertText("Trace:<br>", help);
-				for(LAtom s : e.trace()) {
+				for(LAtom s : e.trace()){
 					insertText(s.toString(), help);
 				}
 				insertText("'global", help);
@@ -778,20 +801,20 @@ public class MLogo implements ActionListener, KeyListener, ChangeListener, Compo
 			}
 		});
 
-		e.bind(new LWord(LWord.Type.Prim, "print") {
-			public void eval(Environment e) {
+		e.bind(new LWord(LWord.Type.Prim, "print"){
+			public void eval(Environment e){
 				insertText(">" + e.thing(a).toString(), terminal);
 			}
 		}, a);
 
-		e.bind(new LWord(LWord.Type.Prim, "println") {
-			public void eval(Environment e) {
+		e.bind(new LWord(LWord.Type.Prim, "println"){
+			public void eval(Environment e){
 				insertText(">", terminal);
 			}
 		});
 
-		e.bind(new LWord(LWord.Type.Prim, "readlist") {
-			public void eval(Environment e) {
+		e.bind(new LWord(LWord.Type.Prim, "readlist"){
+			public void eval(Environment e){
 				String term = "";
 				try{ term = ((HTMLDocument)terminal.getDocument()).getText(0, terminal.getDocument().getLength()); }
 				catch(BadLocationException ex){ ex.printStackTrace(); }
@@ -812,11 +835,11 @@ public class MLogo implements ActionListener, KeyListener, ChangeListener, Compo
 			}
 		});
 
-		e.bind(new LWord(LWord.Type.Prim, "help") {
-			public void eval(Environment e) {
+		e.bind(new LWord(LWord.Type.Prim, "help"){
+			public void eval(Environment e){
 				java.util.List<LWord> words = new ArrayList<LWord>(e.words());
 				Collections.sort(words);
-				for(LWord word : words) {
+				for(LWord word : words){
 					String args = " ";
 					String filename = word.value;
 
@@ -841,20 +864,20 @@ public class MLogo implements ActionListener, KeyListener, ChangeListener, Compo
 			}
 		});
 
-		e.bind(new LWord(LWord.Type.Prim, "clear") {
-			public void eval(Environment e) {
+		e.bind(new LWord(LWord.Type.Prim, "clear"){
+			public void eval(Environment e){
 				terminal.setText("");
 			}
 		});
 
-		e.bind(new LWord(LWord.Type.Prim, "clrhelp") {
-			public void eval(Environment e) {
+		e.bind(new LWord(LWord.Type.Prim, "clrhelp"){
+			public void eval(Environment e){
 				help.setText("");
 			}
 		});
 
-		e.bind(new LWord(LWord.Type.Prim, "load") {
-			public void eval(Environment e) {
+		e.bind(new LWord(LWord.Type.Prim, "load"){
+			public void eval(Environment e){
 				LAtom o = e.thing(b);
 				String arg = o.toString();
 				char[] chars = arg.toCharArray();
@@ -864,8 +887,8 @@ public class MLogo implements ActionListener, KeyListener, ChangeListener, Compo
 			}
 		}, b);
 
-		e.bind(new LWord(LWord.Type.Prim, "save") {
-			public void eval(Environment e) {
+		e.bind(new LWord(LWord.Type.Prim, "save"){
+			public void eval(Environment e){
 				LAtom o = e.thing(b);
 				String arg = o.toString();
 				char[] chars = arg.toCharArray();
@@ -876,14 +899,14 @@ public class MLogo implements ActionListener, KeyListener, ChangeListener, Compo
 			}
 		}, b);
 
-		e.bind(new LWord(LWord.Type.Prim, "saveEnv") {
-			public void eval(Environment e) {
+		e.bind(new LWord(LWord.Type.Prim, "saveEnv"){
+			public void eval(Environment e){
 				saveEnv(e);
 			}
 		});
 
-		e.bind(new LWord(LWord.Type.Prim, "edit") {
-			public void eval(Environment e) {
+		e.bind(new LWord(LWord.Type.Prim, "edit"){
+			public void eval(Environment e){
 				LAtom o = e.thing(b);
 				String arg = o.toString();
 				char[] chars = arg.toCharArray();
@@ -894,8 +917,8 @@ public class MLogo implements ActionListener, KeyListener, ChangeListener, Compo
 			}
 		}, b);
 
-		e.bind(new LWord(LWord.Type.Prim, "describe") {
-			public void eval(Environment e) {
+		e.bind(new LWord(LWord.Type.Prim, "describe"){
+			public void eval(Environment e){
 				if(!e.thing(a).toString().contains("@")){
 					if(e.thing(a) instanceof LList){
 						LAtom o = e.thing(c);
@@ -915,8 +938,8 @@ public class MLogo implements ActionListener, KeyListener, ChangeListener, Compo
 			}
 		}, a, c);
 
-		e.bind(new LWord(LWord.Type.Prim, "getDesc") {
-			public void eval(Environment e) {
+		e.bind(new LWord(LWord.Type.Prim, "getDesc"){
+			public void eval(Environment e){
 				if(a.type != LWord.Type.Call && e.thing(a) instanceof LList){
 					LAtom o = e.thing(a);
 					String desc = ((LList)o).description;
@@ -932,31 +955,43 @@ public class MLogo implements ActionListener, KeyListener, ChangeListener, Compo
 			}
 		}, a);
 
-		e.bind(new LWord(LWord.Type.Prim, "genDocs") {
-			public void eval(Environment e) {
+		e.bind(new LWord(LWord.Type.Prim, "genDocs"){
+			public void eval(Environment e){
 				java.util.List<LWord> words = new ArrayList<LWord>(e.words());
 				Collections.sort(words);
-				for(LWord word : words) {
+				for(LWord word : words){
 					generateDoc(word, false);
 				}
 				insertText("Documents generated in docs folder.", help);
 			}
 		});
 
-		e.bind(new LWord(LWord.Type.Prim, "regenDocs") {
-			public void eval(Environment e) {
+		e.bind(new LWord(LWord.Type.Prim, "regenDocs"){
+			public void eval(Environment e){
 				java.util.List<LWord> words = new ArrayList<LWord>(e.words());
 				Collections.sort(words);
-				for(LWord word : words) {
+				for(LWord word : words){
 					generateDoc(word, true);
 				}
 				insertText("New documents generated in docs folder.", help);
 			}
 		});
+		
+		e.bind(new LWord(LWord.Type.Prim, "fast"){
+			public void eval(Environment e){
+				tSpeed = 1000;
+			}
+		});
+		
+		e.bind(new LWord(LWord.Type.Prim, "slow"){
+			public void eval(Environment e){
+				tSpeed = 30;
+			}
+		});
 	}
 }
 
-class TextEditor extends JPanel {
+class TextEditor extends JPanel{
 	private static final long serialVersionUID = 1L;
 	private MLogo mlogo;
 	private JTextArea editor = new JTextArea();
@@ -965,7 +1000,7 @@ class TextEditor extends JPanel {
 	private String input = "";
 	private boolean changed = false;
 
-	public TextEditor(MLogo m) {
+	public TextEditor(MLogo m){
 		this.mlogo = m;
 		this.editor.setTabSize(2);
 		this.setLayout(new BorderLayout());
@@ -988,6 +1023,7 @@ class TextEditor extends JPanel {
 
 		toolBar.add(Run); 
 		toolBar.add(SaveRun);
+		toolBar.add(Stop);
 
 		cut.setText("Cut");
 		copy.setText("Copy");
@@ -1005,7 +1041,7 @@ class TextEditor extends JPanel {
 	}
 
 	private KeyListener k1 = new KeyAdapter(){
-		public void keyPressed(KeyEvent e) {
+		public void keyPressed(KeyEvent e){
 			changed = true;
 			Save.setEnabled(true);
 			SaveAs.setEnabled(true);
@@ -1027,7 +1063,7 @@ class TextEditor extends JPanel {
 	Action Open = new AbstractAction("Open"){
 		private static final long serialVersionUID = 1L;
 
-		public void actionPerformed(ActionEvent e) {
+		public void actionPerformed(ActionEvent e){
 			savePrev();
 			if(fileSelect.showOpenDialog(null) == JFileChooser.APPROVE_OPTION){
 				openFile(fileSelect.getSelectedFile().getAbsolutePath());
@@ -1039,7 +1075,7 @@ class TextEditor extends JPanel {
 	Action Save = new AbstractAction("Save"){
 		private static final long serialVersionUID = 1L;
 
-		public void actionPerformed(ActionEvent e) {
+		public void actionPerformed(ActionEvent e){
 			if(!currentFile.equals("New File"))
 				saveFile(currentFile);
 			else
@@ -1050,7 +1086,7 @@ class TextEditor extends JPanel {
 	Action SaveAs = new AbstractAction("Save As"){
 		private static final long serialVersionUID = 1L;
 
-		public void actionPerformed(ActionEvent e) {
+		public void actionPerformed(ActionEvent e){
 			saveFileAs();
 		}
 	};
@@ -1058,16 +1094,24 @@ class TextEditor extends JPanel {
 	Action Run = new AbstractAction("Run"){
 		private static final long serialVersionUID = 1L;
 
-		public void actionPerformed(ActionEvent e) {
+		public void actionPerformed(ActionEvent e){
 			input = editor.getText();
 			mlogo.setInput(input);
+		}
+	};
+	
+	Action Stop = new AbstractAction("Stop"){
+		private static final long serialVersionUID = 1L;
+		
+		public void actionPerformed(ActionEvent e){
+			mlogo.setStop(true);
 		}
 	};
 
 	Action SaveRun = new AbstractAction("Save and Run"){
 		private static final long serialVersionUID = 1L;
 
-		public void actionPerformed(ActionEvent e) {
+		public void actionPerformed(ActionEvent e){
 			if(!currentFile.equals("New File"))
 				saveFile(currentFile);
 			else
@@ -1092,7 +1136,7 @@ class TextEditor extends JPanel {
 	}
 
 	public void openFile(String fileName){
-		try {
+		try{
 			FileReader r = new FileReader(fileName);
 			editor.read(r,null);
 			r.close();
@@ -1100,14 +1144,14 @@ class TextEditor extends JPanel {
 			mlogo.setTitle(mlogo.getVersion() + ", Editing: " + this.currentFile);
 			changed = false;
 		}
-		catch(IOException e) {
+		catch(IOException e){
 			Toolkit.getDefaultToolkit().beep();
 			JOptionPane.showMessageDialog(this, "File not found: " + fileName);
 		}
 	}
 
 	public void savePrev(){
-		if(changed) {
+		if(changed){
 			if(JOptionPane.showConfirmDialog(this, "Would you like to save "+ currentFile +" ?", "Save", 
 					JOptionPane.YES_NO_OPTION) == JOptionPane.YES_OPTION){
 				if("New File".equals(currentFile)){
@@ -1121,7 +1165,7 @@ class TextEditor extends JPanel {
 	}
 
 	public void saveFile(String fileName){
-		try {
+		try{
 			FileWriter writer = new FileWriter(fileName);
 			editor.write(writer);
 			writer.close();
@@ -1135,7 +1179,7 @@ class TextEditor extends JPanel {
 		}
 	}
 
-	private void saveFileAs() {
+	private void saveFileAs(){
 		if(fileSelect.showSaveDialog(null) == JFileChooser.APPROVE_OPTION)
 			saveFile(fileSelect.getSelectedFile().getAbsolutePath());
 	}
