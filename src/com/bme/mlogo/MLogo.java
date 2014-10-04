@@ -422,7 +422,6 @@ public class MLogo implements ActionListener, KeyListener, ChangeListener, Compo
 				insertText(String.format("<pre>\tin %s%n</pre>", atom), help);
 			}
 		}
-		System.out.println("Something");
 		this.input = "";
 		this.lineCount = 0;
 		this.stopExec = false;
