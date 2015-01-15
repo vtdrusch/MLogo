@@ -15,11 +15,9 @@ public class LList implements LAtom {
 
 	/** if a to...end block, a cache of the original source code generating this body. **/
 	public String sourceText = "";
-	
-	/** allows the user to store a description of the procedure or list (if applicable) for use in auto-generated documentation **/
-	public String description = "";
 
 	private final List<LAtom> values = new ArrayList<LAtom>();
+	final Map<LWord, String> toBlocks = new IdentityHashMap<LWord, String>();
 
 	/**
 	* Construct a new, empty LList.

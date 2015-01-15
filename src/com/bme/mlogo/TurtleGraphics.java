@@ -22,8 +22,6 @@ public class TurtleGraphics implements MouseListener {
 	private TurtlePanel turtlePanel;
 	private Graphics g;
 	private Graphics g2;
-	private Graphics sg;
-	private Environment e;
 
 	public TurtleGraphics(Environment e, int width, int height) {
 		TurtleGraphics.WIDTH = width;
@@ -37,9 +35,7 @@ public class TurtleGraphics implements MouseListener {
 		turtlePanel = new TurtlePanel(turtle, buffer, status);
 		turtlePanel.addMouseListener(this);
 		g = buffer.createGraphics();
-		g2 = bufferOffscreen.createGraphics();		
-		sg = status.getGraphics();
-		e = e;
+		g2 = bufferOffscreen.createGraphics();
 		
 		synchronized(bufferOffscreen) {
 			g2.setColor(Color.BLACK);
@@ -64,8 +60,6 @@ public class TurtleGraphics implements MouseListener {
 	public void resize(int width, int height){
 		double x = turtle.x - TurtleGraphics.WIDTH / 2;
 		double y = turtle.y - TurtleGraphics.HEIGHT / 2;
-		int prevWidth = TurtleGraphics.WIDTH;
-		int prevHeight = TurtleGraphics.HEIGHT;
 		
 		if(!isEven(width)){
 			width += 1;

@@ -41,18 +41,16 @@ public class Parser {
 	static final String token = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ.,!?";
 	static final String digit = "0123456789";
 
-	private static final LWord local      = new LWord(LWord.Type.Call, "local");
 	private static final LWord bind       = new LWord(LWord.Type.Call, "bind");
 	private static final LWord negate     = new LWord(LWord.Type.Call, "negate");
 	private static final LWord product    = new LWord(LWord.Type.Call, "product");
 	private static final LWord quotient   = new LWord(LWord.Type.Call, "quotient");
 	private static final LWord remainder  = new LWord(LWord.Type.Call, "remainder");
 	private static final LWord sum        = new LWord(LWord.Type.Call, "sum");
-	private static final LWord difference = new LWord(LWord.Type.Call, "dif");
+	private static final LWord difference = new LWord(LWord.Type.Call, "difference");
 	private static final LWord greater    = new LWord(LWord.Type.Call, "greater?");
 	private static final LWord less       = new LWord(LWord.Type.Call, "less?");
 	private static final LWord equal      = new LWord(LWord.Type.Call, "equal?");
-	private static final LWord help       = new LWord(LWord.Type.Call, "help");
 
 	private static LAtom parseToken(Cursor c) {
 		if (c.match("["))   { return parseList(c); }
@@ -110,8 +108,12 @@ public class Parser {
 			}
 
 			body.sourceText = "to " + basetext.substring(0, endindex - baseindex) + "end";
-			if (args.size() < 1) { return r.lput(local).lput(word).lput(body); }
-			return r.lput(local).lput(word).lput(bind).lput(args).lput(body);
+			// these taggedLocal words can be compared for reference equality,
+			// even though to the interpreter they are functionally identical:
+			LWord taggedLocal = new LWord(LWord.Type.Call, "local");
+			c.toBlocks.put(taggedLocal, word.value);
+			if (args.size() < 1) { return r.lput(taggedLocal).lput(word).lput(body); }
+			return r.lput(taggedLocal).lput(word).lput(bind).lput(args).lput(body);
 		}
 		return r.lput(parseToken(c));
 	}
@@ -160,6 +162,7 @@ public class Parser {
 		while(!c.eof()) {
 			r = infixUnary(c, r);
 		}
+		r.toBlocks.putAll(c.toBlocks);
 		return r;
 	}
 
@@ -215,6 +218,8 @@ public class Parser {
 }
 
 class Cursor {
+
+	final Map<LWord, String> toBlocks = new IdentityHashMap<LWord, String>();
 
 	int index = 0;
 	String originalText;

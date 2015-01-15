@@ -14,8 +14,8 @@ public class Primitives {
 
 	private Primitives() {}
 
-	private static final LWord A         = new LWord(LWord.Type.Name, "num1");
-	private static final LWord B         = new LWord(LWord.Type.Name, "num2");
+	private static final LWord A         = new LWord(LWord.Type.Name, "a");
+	private static final LWord B         = new LWord(LWord.Type.Name, "b");
 	private static final LWord RANGE     = new LWord(LWord.Type.Name, "range");
 	private static final LWord ATOM      = new LWord(LWord.Type.Name, "atom");
 	private static final LWord WORD      = new LWord(LWord.Type.Name, "word");
@@ -39,7 +39,7 @@ public class Primitives {
 				e.output(new LNumber(num(e, A) + num(e, B)));
 			}
 		}, A, B);
-		e.bind(new LWord(LWord.Type.Prim, "dif") {
+		e.bind(new LWord(LWord.Type.Prim, "difference") {
 			public void eval(Environment e) {
 				e.output(new LNumber(num(e, A) - num(e, B)));
 			}
@@ -226,10 +226,10 @@ public class Primitives {
 					e.scopes.pop();
 				}
 
-				if (e.tracer != null) {
+				if (e.tracers.size() > 0) {
 					String name = e.getName(e.scopes.peek().code).toString();
 					if (name.startsWith("'")) { name = name.substring(1); }
-					e.tracer.stop(name, false);
+					for(Tracer tracer : e.tracers) { tracer.stop(name, false); }
 				}
 
 				e.scopes.pop();
@@ -246,10 +246,10 @@ public class Primitives {
 					e.scopes.pop();
 				}
 
-				if (e.tracer != null) {
+				if (e.tracers.size() > 0) {
 					String name = e.getName(e.scopes.peek().code).toString();
 					if (name.startsWith("'")) { name = name.substring(1); }
-					e.tracer.output(name, r, false);
+					for(Tracer tracer : e.tracers) { tracer.output(name, r, false); }
 				}
 
 				e.scopes.pop();
